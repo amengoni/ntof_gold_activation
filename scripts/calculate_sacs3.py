@@ -398,7 +398,7 @@ def main():
 
     ssfact = ssfsacs / fsacs if fsacs > 0 else 1.0
 
-    # Explicit threshold check for MACS / m-SACS
+    # Explicit threshold check for MACS / mb-SACS
     if is_threshold_rxn:
         msacs = 0.0
         macs = 0.0
@@ -460,7 +460,7 @@ def main():
         f"filter thickness : {args.fthick_mm:8.1f} mm\n"
         f"sample thickness : {args.sample_thick_atoms_per_barn:8.3e} atoms/b\n"
         f"kT fitted        : {kt_str} ({kT:10.3e} eV)\n"
-        f"m-SACS           : {msacs:10.3e} b\n"
+        f"MB-SACS          : {msacs:10.3e} b\n"
         f"MACS             : {macs:10.3e} b\n"
         f"  elow[eV]     eup[eV]       nflux       f-nflux     ssf-nflux    mb-nflux    iso_xs[b]"
     )
@@ -478,10 +478,10 @@ def main():
     print(f"# Mode            : {mode_str}")
     print(f"# nspectrum       : {args.nspectrum}")
     print(f"# Interp Flag     : {args.interp_flag}")
-    print(f"# kT-fitted        : {kt_str} ({kT:10.3e} eV)")
-    print(f"# m-SACS       [b]: {msacs:10.3e}")
+    print(f"# kT-fitted       : {kt_str} ({kT:10.3e} eV)")
+    print(f"# MB-SACS      [b]: {msacs:10.3e}")
     print(f"# MACS         [b]: {macs:10.3e}")
-    print("#     fthick[mm]   kT[keV]      nn/pp    f-nn/pp    SACS[b]  f-SACS[b] m-SACS[b] ssf-SACS[b] ms-SACS[b]  ss-factor")
+    print("#     fthick[mm]   kT[keV]      nn/pp    f-nn/pp    SACS[b]  f-SACS[b] MB-SACS[b] ssf-SACS[b] ms-SACS[b]  ss-factor")
     print(f"line: {args.fthick_mm:8.2f}  {kT_keV:9.3e}  {nn:8.3e}  {fnn:8.3e}  {sacs:8.3e}  {fsacs:8.3e}  {msacs:8.3e}  {ssfsacs:8.3e}  {ms_sacs:8.3e}   {ssfact:8.3f}")
 
 if __name__ == "__main__":
