@@ -7,6 +7,9 @@ import argparse
 import warnings
 import numpy as np
 from scipy.optimize import curve_fit
+import sys, os
+
+sys.path.insert(0, os.path.dirname(__file__))
 
 def resolve_helper_script(script_name):
     local_path = os.path.join(os.getcwd(), "src", script_name)

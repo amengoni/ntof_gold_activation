@@ -6,6 +6,11 @@ import argparse
 import subprocess
 import numpy as np
 
+# Ensure helper modules or scripts in the same directory can be imported/resolved
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if script_dir not in sys.path:
+    sys.path.insert(0, script_dir)
+
 # Physical Constants for Gold (197Au) Reactions
 M_AU = 196.966569        # Molar mass [g/mol]
 RHO_AU = 19.32           # Density of Gold [g/cm3]
@@ -29,9 +34,9 @@ DEFAULT_INTERP_FLAG = "1/E"  # Hard-coded to 1/E interpolation
 
 USAGE_TEXT = """
 Usage Examples:
-  python3 calculate_counts2.py
-  python3 calculate_counts2.py input_NEAR_BurialDating MCecc 200
-  python3 calculate_counts2.py input_EAR1CC_BurialDating MCecc 500
+  python3 scripts/calculate_counts3.py
+  python3 scripts/calculate_counts3.py input_NEAR_BurialDating MCecc 200
+  python3 scripts/calculate_counts3.py input_EAR1CC_BurialDating MCecc 500
 """
 
 def resolve_spectrum_file(area, flux_variant="MCecc"):
@@ -157,9 +162,12 @@ def calculate_counts_from_cols(cols, flux_variant="MCecc", bpd=200):
 
     spectrum_file = resolve_spectrum_file(area, flux_variant)
 
+    # Resolve exact path to calculate_sacs3.py relative to this script file
+    sacs_script_path = os.path.join(script_dir, "calculate_sacs3.py")
+
     # 3. Invoke calculate_sacs3.py with pointwise F_ms file
     cmd = [
-        sys.executable, "calculate_sacs3.py",
+        sys.executable, sacs_script_path,
         spectrum_file,           # <nspectrum>
         TARGET_ISO,              # <iso> (Au197)
         react,                   # <react>

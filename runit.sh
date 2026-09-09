@@ -7,6 +7,8 @@
 set -e # Exit immediately if a command fails
 
 TEMP_DIR="tempfiles"
+SCRIPTS_DIR="scripts"
+INPUTS_DIR="inputs"
 
 show_usage() {
     cat << EOF
@@ -16,15 +18,15 @@ USAGE GUIDE: $(basename "$0")
 
 DESCRIPTION:
   Executes a full neutron activation analysis workflow for foil targets.
-  Automates 3D Numba Monte Carlo multiple scattering simulations (calculate_ms3.py)
-  and integrates activation counts (calculate_counts3.py).
+  Automates 3D Numba Monte Carlo multiple scattering simulations (scripts/calculate_ms3.py)
+  and integrates activation counts (scripts/calculate_counts3.py).
 
 SYNTAX:
   ./$(basename "$0") <input_file> [flux_variant] [bpd] [--no-ms]
   ./$(basename "$0") -h | --help
 
 POSITIONAL ARGUMENTS:
-  input_file    Path to input table file (e.g., input_NEAR_BurialDating)
+  input_file    Filename or path to input table file in inputs/ (e.g., input_NEAR_BurialDating)
   flux_variant  Neutron spectrum variant tag in data/ (default: MCecc)
   bpd           Bins per decade for SACS integration (default: 200)
 
@@ -34,7 +36,7 @@ FLAGS:
 
 EXAMPLES:
   ./$(basename "$0") input_NEAR_BurialDating MCecc 200          # Full 3D MC Workflow
-  ./$(basename "$0") input_NEAR_N14 MCecc 200 --no-ms          # Fast Run (No MC)
+  ./$(basename "$0") inputs/input_NEAR_N14 MCecc 200 --no-ms   # Fast Run (No MC)
 ===============================================================================
 EOF
 }
@@ -57,12 +59,19 @@ for arg in "$@"; do
     fi
 done
 
-INPUT_FILE="${ARGS[0]}"
+RAW_INPUT_FILE="${ARGS[0]}"
 FLUX_VARIANT="${ARGS[1]:-MCecc}"
 BPD="${ARGS[2]:-200}"
 
-MC_SCRIPT="calculate_ms3.py"
-COUNTS_SCRIPT="calculate_counts3.py"
+# Resolve input file path (automatically prepend inputs/ if not already specified)
+if [[ "${RAW_INPUT_FILE}" == *"/"* ]]; then
+    INPUT_FILE="${RAW_INPUT_FILE}"
+else
+    INPUT_FILE="${INPUTS_DIR}/${RAW_INPUT_FILE}"
+fi
+
+MC_SCRIPT="${SCRIPTS_DIR}/calculate_ms3.py"
+COUNTS_SCRIPT="${SCRIPTS_DIR}/calculate_counts3.py"
 
 echo "================================================================="
 echo " STARTING ACTIVATION ANALYSIS WORKFLOW"
