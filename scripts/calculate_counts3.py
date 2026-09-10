@@ -48,8 +48,10 @@ def resolve_spectrum_file(area, flux_variant="MCecc"):
     
     if area_clean == "NEAR":
         spectrum_file = f"NEAR-{flux_variant}"
-    elif area_clean in ["EAR1CC", "EAR1"]:
+    elif area_clean == "EAR1CC":
         spectrum_file = "Z21-EAR1"
+    elif area_clean in ["EAR1FC", "EAR1"]:
+        spectrum_file = "Z21-EAR1FC"
     elif area_clean == "EAR2":
         spectrum_file = "Z22-EAR2"
     else:
