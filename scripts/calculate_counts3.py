@@ -223,18 +223,21 @@ def calculate_counts_from_cols(cols, flux_variant="MCecc", bpd=200):
     # Equivalent standard 7e12 proton pulses
     equivalent_pulses = total_protons / PROTONS_PER_STANDARD_PULSE
 
-    # Total integrated neutron fluence density [neutrons/cm2]
+    # Total integrated neutron fluence density hitting the sample [neutrons/cm2]
+    # Unit conversions:
+    # - EAR1/EAR2: f_nn_pulse [n/pulse] / area_cm2 [cm2] * pulses * BIF
+    # - NEAR: f_nn_pulse [n/cm2/pulse] * pulses * BIF (where BIF is 1.0)
     if "Z21" in spectrum_file or "EAR1" in spectrum_file or "Z22" in spectrum_file or "EAR2" in spectrum_file:
-        phi_tot = (f_nn_pulse / area_cm2) * equivalent_pulses
+        phi_tot = (f_nn_pulse / area_cm2) * equivalent_pulses * bif
     else:
-        phi_tot = f_nn_pulse * equivalent_pulses
+        phi_tot = f_nn_pulse * equivalent_pulses * bif
 
     # 5. Activation Calculation using channel-specific decay constant
     R = (NT * phi_tot * sigma_cm2) / tirr_s
     A0 = R * (1.0 - np.exp(-lam * tirr_s))
 
-    # Total calculated gamma counts
-    counts_calc = (A0 / lam) * np.exp(-lam * twait_s) * (1.0 - np.exp(-lam * tcount_s)) * epsi * Igam * bif
+    # Total calculated gamma counts (bif already included inside phi_tot)
+    counts_calc = (A0 / lam) * np.exp(-lam * twait_s) * (1.0 - np.exp(-lam * tcount_s)) * epsi * Igam
 
     display_react = "n4n" if react == "41" else react
     return sample_name, line_id, display_react, fthick_mm, mass_g, thick_mm, sacs_b, f_sacs_b, ssf_sacs_b, ms_sacs_b, phi_tot, counts_calc, c_table, spectrum_file
