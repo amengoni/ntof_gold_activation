@@ -328,7 +328,7 @@ def main():
         print(line)
 
     header_fmt1 = f"#{'1':<10} {'2':<10} {'3':<5} {'4':<6} {'5':<10} {'6':<9} {'7':<10} {'8':<12} {'9':<12} {'10':<12} {'11':<12} {'12':<16} {'13':<12} {'14':<12} {'15':<12} {'16':<8}"
-    header_fmt2 = f"#{'area':<10} {'sample':<10} {'line':<4} {'react':<6} {'fthick[mm]':<10} {'mass[g]':<9} {'thick[mm]':<10} {'SACS[b]':<12} {'f-SACS[b]':<12} {'ssf-SACS[b]':<12} {'ms-SACS[b]':<12} {'n_total[n/cm2]':<16} {'Cgam_calc':<12} {'Cgam_exp':<12} {'Ratio(C/E)':<12} {'BIF':<8}"
+    header_fmt2 = f"#{'area':<10} {'sample':<9} {'line':<4} {'react':<6} {'fthick[mm]':<10} {'mass[g]':<9} {'thick[mm]':<10} {'SACS[b]':<12} {'f-SACS[b]':<12} {'ssf-SACS[b]':<12} {'ms-SACS[b]':<12} {'n_total[n/cm2]':<16} {'Cgam_calc':<12} {'Cgam_exp':<12} {'Ratio(C/E)':<12} {'BIF':<8}"
     divider_line = "#" * len(header_fmt2)
 
     table_headers = f"{header_fmt1}\n{header_fmt2}\n{divider_line}"
