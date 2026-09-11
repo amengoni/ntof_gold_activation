@@ -404,6 +404,8 @@ def main():
         macs = 0.0
     else:
         msacs = msacs_num / msacs_denom if msacs_denom > 0 else 0.0
+        if msacs < 1.0e-10:
+            msacs = 0.0
         macs = (2.0 / np.sqrt(np.pi)) * msacs
 
     # Output Formatting & allcols Export
