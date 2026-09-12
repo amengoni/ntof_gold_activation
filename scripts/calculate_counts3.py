@@ -243,7 +243,7 @@ def calculate_counts_from_cols(cols, flux_variant="MCecc", bpd=200):
     counts_calc = (A0 / lam) * np.exp(-lam * twait_s) * (1.0 - np.exp(-lam * tcount_s)) * epsi * Igam
 
     display_react = "n4n" if react == "41" else react
-    return area, sample_name, line_id, display_react, fthick_mm, mass_g, thick_mm, sacs_b, f_sacs_b, ssf_sacs_b, ms_sacs_b, phi_tot, counts_calc, c_table, ratio_val(counts_calc, c_table), bif, spectrum_file
+    return area, sample_name, line_id, display_react, fthick_mm, mass_g, diam_mm, thick_mm, sacs_b, f_sacs_b, ssf_sacs_b, ms_sacs_b, phi_tot, counts_calc, c_table, ratio_val(counts_calc, c_table), bif, spectrum_file
 
 
 def ratio_val(c_calc, c_table):
@@ -327,8 +327,8 @@ def main():
     for line in meta_headers:
         print(line)
 
-    header_fmt1 = f"#{'1':<10} {'2':<10} {'3':<5} {'4':<6} {'5':<10} {'6':<9} {'7':<10} {'8':<12} {'9':<12} {'10':<12} {'11':<12} {'12':<16} {'13':<12} {'14':<12} {'15':<12} {'16':<8}"
-    header_fmt2 = f"#{'area':<10} {'sample':<9} {'line':<4} {'react':<6} {'fthick[mm]':<10} {'mass[g]':<9} {'thick[mm]':<10} {'SACS[b]':<12} {'f-SACS[b]':<12} {'ssf-SACS[b]':<12} {'ms-SACS[b]':<12} {'n_total[n/cm2]':<16} {'Cgam_calc':<12} {'Cgam_exp':<12} {'Ratio(C/E)':<12} {'BIF':<8}"
+    header_fmt1 = f"#{'1':<10} {'2':<10} {'3':<5} {'4':<6} {'5':<10} {'6':<9} {'7':<9} {'8':<10} {'9':<12} {'10':<12} {'11':<12} {'12':<12} {'13':<16} {'14':<12} {'15':<12} {'16':<12} {'17':<8}"
+    header_fmt2 = f"#{'area':<10} {'sample':<9} {'line':<4} {'react':<6} {'fthick[mm]':<10} {'mass[g]':<9} {'diam[mm]':<9} {'thick[mm]':<10} {'SACS[b]':<12} {'f-SACS[b]':<12} {'ssf-SACS[b]':<12} {'ms-SACS[b]':<12} {'n_total[n/cm2]':<16} {'Cgam_calc':<12} {'Cgam_exp':<12} {'Ratio(C/E)':<12} {'BIF':<8}"
     divider_line = "#" * len(header_fmt2)
 
     table_headers = f"{header_fmt1}\n{header_fmt2}\n{divider_line}"
@@ -337,11 +337,11 @@ def main():
     output_lines = meta_headers + [table_headers]
 
     for cols in data_rows:
-        area, sample_name, line_id, react, fthick_mm, mass_g, thick_mm, sacs_b, f_sacs, ssf_sacs, ms_sacs, phi_tot, c_calc, c_table, ratio, bif, spec_used = calculate_counts_from_cols(
+        area, sample_name, line_id, react, fthick_mm, mass_g, diam_mm, thick_mm, sacs_b, f_sacs, ssf_sacs, ms_sacs, phi_tot, c_calc, c_table, ratio, bif, spec_used = calculate_counts_from_cols(
             cols, flux_variant=args.flux_variant, bpd=args.bpd
         )
 
-        line_str = f"{area:<10} {sample_name:<10} {line_id:<5} {react:<6} {fthick_mm:<10.2f} {mass_g:<9.4f} {thick_mm:<10.4f} {sacs_b:<12.3f} {f_sacs:<12.3f} {ssf_sacs:<12.3f} {ms_sacs:<12.3f} {phi_tot:<16.3e} {c_calc:<12.3e} {c_table:<12.3e} {ratio:<12.3f} {bif:<8.4f}"
+        line_str = f"{area:<10} {sample_name:<10} {line_id:<5} {react:<6} {fthick_mm:<10.2f} {mass_g:<9.4f} {diam_mm:<9.1f} {thick_mm:<10.4f} {sacs_b:<12.3f} {f_sacs:<12.3f} {ssf_sacs:<12.3f} {ms_sacs:<12.3f} {phi_tot:<16.3e} {c_calc:<12.3e} {c_table:<12.3e} {ratio:<12.3f} {bif:<8.4f}"
         print(line_str)
         output_lines.append(line_str)
 
