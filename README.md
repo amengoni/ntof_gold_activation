@@ -32,7 +32,7 @@ The primary bash orchestration entry point. It manages input resolution, detects
 
 * **Key Responsibilities:**
   * Reads sample rows from target input tables inside `inputs/`.
-  * Extracts distinct foil geometries (diameter, mass, and reaction channels `$(n,\gamma)$`, `$(n,2n)$`, `$(n,4n)$`).
+  * Extracts distinct foil geometries (diameter, mass, and reaction channels $(n,\gamma)$, $(n,2n)$, $(n,4n)$).
   * Auto-generates runtime configuration decks (`params.txt`) and invokes `calculate_ms3.py`.
   * Caches calculated $F_{\mathrm{ms}}$ tables in `tempfiles/` to avoid redundant Monte Carlo runs.
   * Calls `calculate_counts3.py` to fold cross-sections and output final calculated vs. experimental count comparisons in `newtable`.
