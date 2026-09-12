@@ -7,7 +7,7 @@ import argparse
 import warnings
 import numpy as np
 from scipy.optimize import curve_fit
-import sys, os
+from scipy.special import expn
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -27,11 +27,54 @@ def resolve_helper_script(script_name):
 BINNERIZE_PATH = resolve_helper_script("binnerize.py")
 REBINNERIZE_PATH = resolve_helper_script("rebinnerize.py")
 
+def isotropic_ssf_flat_foil(tau):
+    """
+    Computes self-shielding factor for a flat foil in isotropic flux using Case's formula:
+    G(tau) = [1 - 2*E_3(tau)] / (2*tau)
+    Uses Taylor series expansion for small optical depth (tau < 1e-4) to prevent numerical division issues.
+    """
+    tau = np.maximum(np.asarray(tau, dtype=np.float64), 0.0)
+    result = np.ones_like(tau)
+    
+    mask_large = tau >= 1e-4
+    tau_l = tau[mask_large]
+    
+    if np.any(mask_large):
+        e3 = expn(3, tau_l)
+        result[mask_large] = (1.0 - 2.0 * e3) / (2.0 * tau_l)
+        
+    mask_small = ~mask_large
+    if np.any(mask_small):
+        tau_s = tau[mask_small]
+        # Taylor expansion: 1 - 3/4*tau + 1/3*tau^2 - 1/8*tau^3 ...
+        result[mask_small] = 1.0 - 0.75 * tau_s + (1.0 / 3.0) * (tau_s**2) - 0.125 * (tau_s**3)
+        
+    return np.clip(result, 0.0, 1.0)
+
+def normal_ssf_flat_foil(tau):
+    """
+    Computes 1D normal-incidence transmission self-shielding factor:
+    G(tau) = [1 - exp(-tau)] / tau
+    """
+    tau = np.maximum(np.asarray(tau, dtype=np.float64), 0.0)
+    result = np.ones_like(tau)
+    
+    mask_large = tau >= 1e-5
+    tau_l = tau[mask_large]
+    
+    if np.any(mask_large):
+        result[mask_large] = (1.0 - np.exp(-tau_l)) / tau_l
+        
+    mask_small = ~mask_large
+    if np.any(mask_small):
+        tau_s = tau[mask_small]
+        result[mask_small] = 1.0 - 0.5 * tau_s + (1.0 / 6.0) * (tau_s**2)
+        
+    return np.clip(result, 0.0, 1.0)
+
 def interp_trend_extrap(x_new, x_orig, y_orig, n_pts_fit=5, is_loglog=True, is_threshold_rxn=False):
     """
-    Interpolates data on x_new.
-    For threshold reactions (like n2n, n4n), values below min(x_orig) are set strictly to 0.0
-    to prevent unphysical log-log extrapolation into thermal/epithermal energy regions.
+    Interpolates data on x_new with low-energy and high-energy extrapolation bounds.
     """
     mask_orig = (x_orig > 0.0) & (y_orig > 0.0) if is_loglog else (x_orig > 0.0)
     if not np.any(mask_orig):
@@ -76,6 +119,8 @@ def interp_trend_extrap(x_new, x_orig, y_orig, n_pts_fit=5, is_loglog=True, is_t
             if n_pts >= 2:
                 p = np.polyfit(log_x_valid[-n_pts:], log_y_valid[-n_pts:], 1)
                 slope, intercept = p[0], p[1]
+                # Clamp steep physical drop-offs for (n,gamma) above 1-2 MeV
+                slope = min(slope, 0.0)
                 if is_loglog:
                     y_new[high_mask] = np.exp(slope * log_x_new[high_mask] + intercept)
                 else:
@@ -147,7 +192,6 @@ def load_spectrum(filename):
         return e_mid, flux, np.zeros_like(e_mid), e_mid, e_mid
 
 def load_2col(filename):
-    """Loads 2-column data and automatically converts energy from MeV to eV if needed."""
     data = np.loadtxt(filename, comments='#', usecols=(0, 1), unpack=True)
     e_vals, xs_vals = data[0], data[1]
     
@@ -237,12 +281,59 @@ def run_rebinnerize(input_file, num_cols, idx_elow, idx_eup, idx_val, e_min, e_m
     return np.loadtxt("out_rebinned")
 
 # ==========================================
-# Main Workflow
+# Main Workflow & Usage Block
 # ==========================================
 
+def print_usage():
+    usage_text = """
+================================================================================
+Spectral-Averaged Cross Section (SACS) Calculator - calculate_sacs3.py
+================================================================================
+
+USAGE:
+  python3 calculate_sacs3.py <nspectrum> <iso> <react> <fthick_mm> <sample_mat> \\
+                             <sample_thick_atoms_per_barn> <bpd> <bin_mode> \\
+                             [extrap_mode] [interp_flag] [fms_file] [--ssf_model MODEL]
+
+POSITIONAL ARGUMENTS:
+  nspectrum                   Neutron spectrum filename located in data/
+  iso                         Target reaction isotope label (e.g., Au197)
+  react                       Reaction channel (ng, n2n, n4n, 102, 16, 41)
+  fthick_mm                   Filter thickness in mm (e.g., 0.0 for bare, 1.0 for B4C)
+  sample_mat                  Sample element label (e.g., Au)
+  sample_thick_atoms_per_barn Target thickness in atoms/barn (0.0 for infinitely dilute)
+  bpd                         Bins per decade for logarithmic energy mesh (e.g., 20)
+  bin_mode                    Integration binning mode:
+                                0 = Late Rebinning (Master Grid integration, high precision)
+                                1 = Early Rebinning (Bin input files first)
+  extrap_mode                 Extrapolation mode (default: 1)
+  interp_flag                 Flux interpolation shape ('1/E' or 'linear', default: '1/E')
+  fms_file                    Path to pointwise Monte Carlo F_ms output file (or NONE)
+
+OPTIONAL ARGUMENTS:
+  --ssf_model MODEL           Self-shielding model:
+                                'normal'    = 1D normal incidence perpendicular beam (default)
+                                'isotropic' = Case's E3 formula for 3D isotropic core flux
+  -h, --help                  Show this usage message and exit
+
+EXAMPLES:
+  1. 10 um Gold foil in TRIGA core spectrum (Normal incidence default):
+     python3 calculate_sacs3.py TRIGA_MarkII_core.dat Au197 ng 0.0 Au 5.906e-4 20 0
+
+  2. 100 um Gold foil in TRIGA core spectrum using Isotropic SSF model:
+     python3 calculate_sacs3.py TRIGA_MarkII_core.dat Au197 ng 0.0 Au 5.906e-3 20 0 --ssf_model isotropic
+================================================================================
+"""
+    print(usage_text)
+
 def main():
+    if len(sys.argv) == 1:
+        print_usage()
+        sys.exit(0)
+
     parser = argparse.ArgumentParser(
-        description="Spectral-Averaged Cross Section (SACS) Integration Driver (calculate_sacs3_2.py)"
+        description="Spectral-Averaged Cross Section (SACS) Integration Driver (calculate_sacs3.py)",
+        add_help=True
     )
     parser.add_argument("nspectrum", help="Neutron spectrum filename in data/")
     parser.add_argument("iso", help="Target reaction isotope (e.g., Au197)")
@@ -255,6 +346,15 @@ def main():
     parser.add_argument("extrap_mode", nargs="?", default="1", help="Extrapolation mode (default: 1)")
     parser.add_argument("interp_flag", nargs="?", default="1/E", help="Flux interpolation shape ('1/E' or 'linear')")
     parser.add_argument("fms_file", nargs="?", default=None, help="Path to pointwise Monte Carlo F_ms output file")
+    
+    # SSF Model Switch (Default set to "normal")
+    parser.add_argument(
+        "--ssf_model",
+        type=str,
+        choices=["isotropic", "normal"],
+        default="normal",
+        help="Self-shielding angular flux model: 'normal' (1D perpendicular beam, default) or 'isotropic' (Case's E3 formula)"
+    )
 
     args = parser.parse_args()
 
@@ -330,16 +430,18 @@ def main():
     attn_filt = np.where(ff * sigma_filt < 99.0, np.exp(-sigma_filt * ff), 0.0)
     phi_filt = phi_raw * attn_filt
 
+    # Calculate Optical Depth tau
     samp_opt_depth = sigma_samp * args.sample_thick_atoms_per_barn
-    ssf_factor = np.where(
-        samp_opt_depth > 0.0,
-        np.where(
-            samp_opt_depth < 99.0,
-            (1.0 - np.exp(-samp_opt_depth)) / samp_opt_depth,
-            0.0
-        ),
-        1.0
-    )
+
+    # Evaluate Self-Shielding Factor based on User Switch
+    if args.sample_thick_atoms_per_barn > 0.0:
+        if args.ssf_model == "isotropic":
+            ssf_factor = isotropic_ssf_flat_foil(samp_opt_depth)
+        else:
+            ssf_factor = normal_ssf_flat_foil(samp_opt_depth)
+    else:
+        ssf_factor = np.ones_like(E_grid)
+
     phi_ssf = phi_filt * ssf_factor
 
     if fms_x is not None and len(fms_x) > 0:
@@ -398,7 +500,6 @@ def main():
 
     ssfact = ssfsacs / fsacs if fsacs > 0 else 1.0
 
-    # Explicit threshold check for MACS / mb-SACS
     if is_threshold_rxn:
         msacs = 0.0
         macs = 0.0
@@ -408,7 +509,6 @@ def main():
             msacs = 0.0
         macs = (2.0 / np.sqrt(np.pi)) * msacs
 
-    # Output Formatting & allcols Export
     if args.bin_mode == 0:
         E_mid_bounds = 0.5 * (E_grid[:-1] + E_grid[1:])
         E_low_grid = np.zeros_like(E_grid)
@@ -458,6 +558,7 @@ def main():
     header = (
         f"neutron spectrum : {args.nspectrum}\n"
         f"binning mode     : {mode_str}\n"
+        f"ssf model        : {args.ssf_model}\n"
         f"flux interp flag : {args.interp_flag}\n"
         f"filter thickness : {args.fthick_mm:8.1f} mm\n"
         f"sample thickness : {args.sample_thick_atoms_per_barn:8.3e} atoms/b\n"
@@ -468,7 +569,6 @@ def main():
     )
     np.savetxt("allcols", allcols_data, fmt="%.6e", header=header, comments="# ")
 
-    # Clean Up Temp Files
     tmp_files = [
         "tmp_raw_flux.dat", "tmp_filt_flux.dat", "tmp_ssf_flux.dat",
         "tmp_mb_flux.dat", "out_binned", "out_rebinned"
@@ -478,12 +578,13 @@ def main():
             os.remove(tmp)
 
     print(f"# Mode            : {mode_str}")
+    print(f"# SSF Model       : {args.ssf_model}")
     print(f"# nspectrum       : {args.nspectrum}")
     print(f"# Interp Flag     : {args.interp_flag}")
     print(f"# kT-fitted       : {kt_str} ({kT:10.3e} eV)")
     print(f"# MB-SACS      [b]: {msacs:10.3e}")
     print(f"# MACS         [b]: {macs:10.3e}")
-    print("#     fthick[mm]   kT[keV]      nn/pp    f-nn/pp    SACS[b]  f-SACS[b] MB-SACS[b] ssf-SACS[b] ms-SACS[b]  ss-factor")
+    print("#    fthick[mm]   kT[keV]      nn/pp    f-nn/pp    SACS[b]  f-SACS[b] MB-SACS[b] ssf-SACS[b] ms-SACS[b]  ss-factor")
     print(f"line: {args.fthick_mm:8.2f}  {kT_keV:9.3e}  {nn:8.3e}  {fnn:8.3e}  {sacs:8.3e}  {fsacs:8.3e}  {msacs:8.3e}  {ssfsacs:8.3e}  {ms_sacs:8.3e}   {ssfact:8.3f}")
 
 if __name__ == "__main__":
