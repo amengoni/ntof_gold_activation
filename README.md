@@ -1,6 +1,6 @@
 # n_TOF Gold Activation & Multiple Scattering Analysis Framework
 
-A automated computational framework for neutron activation analysis and 3D Numba-accelerated Monte Carlo multiple scattering ($F_{\mathrm{ms}}$) corrections at CERN's n_TOF facility.
+A automated computational framework for neutron activation analysis and 3D Numba-accelerated Monte Carlo multiple scattering ($F\_{\mathrm{ms}}$) corrections at CERN's n_TOF facility.
 
 This software pipeline calculates Spectral Averaged Cross Sections (SACS) and expected $\gamma$-ray counts for irradiated target foils ($^{197}\text{Au}$), accounting for neutron spectrum attenuation, sample self-shielding, and 3D multiple scattering.
 
