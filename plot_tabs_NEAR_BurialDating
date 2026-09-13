@@ -1,0 +1,103 @@
+#
+dofigs="yes"
+#
+
+# Data format reference:
+#1          2         3    4     5          6        7        8         9          10         11         12         13             14           15          16          17         18    
+#area      sample    line react fthick[mm] mass[g]  diam[mm] thick[mm] SACS[b]    f-SACS[b]  ssf-SACS[b] ms-SACS[b] n_total[n/cm2] A0[Bq/g]     Cgam_calc   Cgam_exp    Ratio(C/E) BIF   
+
+set term x11
+set key box 
+set ylabel "C/E"
+fln1="alltables/newtable_NEAR_BurialDating"
+set title "NEAR station (no filter)"
+set yrange [0:1.5]
+
+# Render Column 1 labels without subscript parsing or rotation issues
+set xtics noenhanced 
+
+# --- STATS CALCULATION FOR UNFILTERED (fthick == 0) ---
+stats fln1 u ((($3==11 | $3==12)) && ($5 == 0.0) ? ($17):1/0) nooutput
+ave1_NF=STATS_mean; std1_NF=STATS_stddev
+stats fln1 u ((($3==21 | $3==22)) && ($5 == 0.0) ? ($17):1/0) nooutput
+ave2_NF=STATS_mean; std2_NF=STATS_stddev
+
+stats fln1 u ($5 == 0.0 ? $5:1/0) nooutput
+xmax=STATS_records+1
+fthick=STATS_mean
+
+tit=sprintf("NEAR, filter thickness [mm]: %5.1f", fthick); set title tit
+lab_ng_NF=sprintf("capture lines: %3.2f +/- %2.1f%% ", ave1_NF, std1_NF/ave1_NF*100.0)
+lab_n2n_NF=sprintf("n2n lines: %3.2f +/- %2.1f%% ", ave2_NF, std2_NF/ave2_NF*100.0)
+set xrange [0:xmax]
+
+# --- PLOT 1: UNFILTERED (fthick == 0) ---
+plot ave1_NF w l lw 1 lt -1 not,\
+     fln1 u ($5 == 0 ? $0+1:1/0):(ave1_NF-std1_NF):(ave1_NF+std1_NF) with filledcurves lc "blue" fs transparent solid 0.5 not, \
+     fln1 u ($0+1):(($3==11 | $3==12) && $5 == 0.0 ? $17:1/0):xtic($5 == 0 ? stringcolumn(2):"") w p pt 5 ps 1 lt 1 t lab_ng_NF
+
+pause -1
+if(dofigs eq "yes"){set output "figures/plot_NEARNF_BurialDating_ng.png"; set term pngcairo noenhanced size 2480,1748 font 'arial,40' linewidth 4 ps 4; replot; set term x11}
+
+# --- PLOT 1: UNFILTERED (fthick == 0) ---
+plot ave1_NF w l lw 1 lt -1 not, ave2_NF w l lw 1 lt -1 not, \
+     fln1 u ($5 == 0 ? $0+1:1/0):(ave1_NF-std1_NF):(ave1_NF+std1_NF) with filledcurves lc "blue" fs transparent solid 0.5 not, \
+     fln1 u ($5 == 0 ? $0+1:1/0):(ave2_NF-std2_NF):(ave2_NF+std2_NF) with filledcurves lc "blue" fs transparent solid 0.5 not, \
+     fln1 u ($0+1):(($3==11 | $3==12) && $5 == 0.0 ? $17:1/0):xtic($5 == 0 ? stringcolumn(2):"") w p pt 5 ps 1 lt 1 t lab_ng_NF, \
+     fln1 u ($0+1):(($3==21 | $3==22) && $5 == 0.0 ? $17:1/0) w p pt 5 ps 1 lt 4 t lab_n2n_NF
+
+pause -1
+if(dofigs eq "yes"){set output "figures/plot_NEARNF_BurialDating.png"; set term pngcairo noenhanced size 2480,1748 font 'arial,40' linewidth 4 ps 4; replot; set term x11}
+
+
+
+
+
+
+# --- STATS CALCULATION FOR FILTERED (fthick > 0) ---
+fln2="alltables/newtable_NEAR_BurialDating"
+stats fln2 u (($3==11 | $3==12) && $5 > 0 ? ($17):1/0) nooutput
+ave1_WF=STATS_mean; std1_WF=STATS_stddev
+stats fln2 u (($3==21 | $3==22) && $5 > 0 ? ($17):1/0) nooutput
+ave2_WF=STATS_mean; std2_WF=STATS_stddev
+
+set xrange [*:*]; set yrange [*:*]
+stats fln2 u ($5 > 0.0 ? $5:1/0) nooutput
+xmax=STATS_records+1
+fthick=STATS_mean
+
+tit=sprintf("NEAR, filter thickness [mm]: %5.1f", fthick); set title tit
+lab_ng_WF=sprintf("capture lines: %3.2f +/- %2.1f%% ", ave1_WF, std1_WF/ave1_WF*100.0)
+lab_n2n_WF=sprintf("n2n lines: %3.2f +/- %2.1f%% ", ave2_WF, std2_WF/ave2_WF*100.0)
+
+set yrange [0:1.5]
+# --- PLOT 2: FILTERED (fthick > 0) ---
+plot ave1_WF w l lw 1 lt -1 not, ave2_WF w l lw 1 lt -1 not, \
+     fln2 u ($0+1):(ave1_WF-std1_WF):(ave1_WF+std1_WF) with filledcurves lc "skyblue" fs transparent solid 0.5 not, \
+     fln2 u ($0+1):(ave2_WF-std2_WF):(ave2_WF+std2_WF) with filledcurves lc "skyblue" fs transparent solid 0.5 not, \
+     fln2 u ($0+1):(($3==11 | $3==12) && $5 > 0 ? $17:1/0):xtic(stringcolumn(2)) w p pt 5 ps 1 lt 2 t lab_ng_WF, \
+     fln2 u ($0+1):(($3==21 | $3==22) && $5 > 0 ? $17:1/0) w p pt 5 ps 1 lt 7 t lab_n2n_WF
+
+pause -1
+if(dofigs eq "yes"){set pointsize 3.0; set output "figures/plot_NEARWF_BurialDating.png"; set term pngcairo noenhanced size 2480,1748 font 'arial,40' linewidth 4 ps 4; replot; set term x11}
+
+
+# --- PLOT 3: COMBINED ---
+tit="NEAR, w and w/o filter"; set title tit
+
+plot ave1_NF w l lw 1 lt -1 not, ave2_NF w l lw 1 lt -1 not, \
+     fln1 u ($0+1):(ave1_NF-std1_NF):(ave1_NF+std1_NF) with filledcurves lc "blue" fs transparent solid 0.5 not, \
+     fln1 u ($0+1):(ave2_NF-std2_NF):(ave2_NF+std2_NF) with filledcurves lc "blue" fs transparent solid 0.5 not, \
+     fln1 u ($0+1):(($3==11 | $3==12) && $5 == 0.0 ? $17:1/0):xtic(stringcolumn(2)) w p pt 5 ps 1 lt 1 t lab_ng_NF, \
+     fln1 u ($0+1):(($3==21 | $3==22) && $5 == 0.0 ? $17:1/0) w p pt 5 ps 1 lt 4 t lab_n2n_NF, \
+     ave1_WF w l lw 1 lt -1 not, ave2_WF w l lw 1 lt -1 not, \
+     fln2 u ($0+1):(ave1_WF-std1_WF):(ave1_WF+std1_WF) with filledcurves lc "skyblue" fs transparent solid 0.5 not, \
+     fln2 u ($0+1):(ave2_WF-std2_WF):(ave2_WF+std2_WF) with filledcurves lc "skyblue" fs transparent solid 0.5 not, \
+     fln2 u ($0+1):(($3==11 | $3==12) && $5 > 0 ? $17:1/0) w p pt 5 ps 1 lt 2 t lab_ng_WF, \
+     fln2 u ($0+1):(($3==21 | $3==22) && $5 > 0 ? $17:1/0) w p pt 5 ps 1 lt 7 t lab_n2n_WF
+
+pause -1
+if(dofigs eq "yes"){set pointsize 3.0; set output "figures/plot_NEAR_BurialDating.png"; set term pngcairo noenhanced size 2480,1748 font 'arial,40' linewidth 4 ps 4; replot; set term x11}
+
+
+
