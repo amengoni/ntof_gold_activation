@@ -27,12 +27,55 @@ def resolve_helper_script(script_name):
 BINNERIZE_PATH = resolve_helper_script("binnerize.py")
 REBINNERIZE_PATH = resolve_helper_script("rebinnerize.py")
 
+def log_trapezoid(y, x):
+    """
+    Computes numerical integration assuming power-law variation y(x) ~ x^alpha 
+    between adjacent mesh points. Superior to standard linear trapezoidal 
+    integration on logarithmic/non-uniform energy grids for nuclear cross 
+    sections and 1/E flux spectra.
+    """
+    x = np.asarray(x, dtype=np.float64)
+    y = np.asarray(y, dtype=np.float64)
+
+    if len(x) < 2:
+        return 0.0
+
+    dx = np.diff(x)
+    
+    # Floor non-positive values to avoid log domain errors
+    y_safe = np.where(y <= 0.0, 1e-300, y)
+
+    log_x = np.log(x)
+    log_y = np.log(y_safe)
+
+    d_log_x = np.diff(log_x)
+    d_log_y = np.diff(log_y)
+
+    # Calculate local power-law exponent alpha = d(log y) / d(log x)
+    alpha = d_log_y / d_log_x
+
+    # Identify segments where alpha is near -1 (linear log-log singularity) or y is zero
+    mask_singularity = np.abs(alpha + 1.0) < 1e-5
+    mask_zero = (y[:-1] <= 0.0) | (y[1:] <= 0.0)
+    mask_linear = mask_singularity | mask_zero
+
+    integral_segments = np.zeros(len(x) - 1, dtype=np.float64)
+
+    # Standard linear trapezoid for near-flat/singular segments or zero-crossings
+    if np.any(mask_linear):
+        integral_segments[mask_linear] = 0.5 * (y[:-1][mask_linear] + y[1:][mask_linear]) * dx[mask_linear]
+
+    # Power-law integration: integral of y1 * (x / x1)^alpha dx = (y2*x2 - y1*x1) / (alpha + 1)
+    mask_power = ~mask_linear
+    if np.any(mask_power):
+        x1, x2 = x[:-1][mask_power], x[1:][mask_power]
+        y1, y2 = y[:-1][mask_power], y[1:][mask_power]
+        a = alpha[mask_power]
+        integral_segments[mask_power] = (y2 * x2 - y1 * x1) / (a + 1.0)
+
+    return float(np.sum(integral_segments))
+
 def isotropic_ssf_flat_foil(tau):
-    """
-    Computes self-shielding factor for a flat foil in isotropic flux using Case's formula:
-    G(tau) = [1 - 2*E_3(tau)] / (2*tau)
-    Uses Taylor series expansion for small optical depth (tau < 1e-4) to prevent numerical division issues.
-    """
     tau = np.maximum(np.asarray(tau, dtype=np.float64), 0.0)
     result = np.ones_like(tau)
     
@@ -46,16 +89,11 @@ def isotropic_ssf_flat_foil(tau):
     mask_small = ~mask_large
     if np.any(mask_small):
         tau_s = tau[mask_small]
-        # Taylor expansion: 1 - 3/4*tau + 1/3*tau^2 - 1/8*tau^3 ...
         result[mask_small] = 1.0 - 0.75 * tau_s + (1.0 / 3.0) * (tau_s**2) - 0.125 * (tau_s**3)
         
     return np.clip(result, 0.0, 1.0)
 
 def normal_ssf_flat_foil(tau):
-    """
-    Computes 1D normal-incidence transmission self-shielding factor:
-    G(tau) = [1 - exp(-tau)] / tau
-    """
     tau = np.maximum(np.asarray(tau, dtype=np.float64), 0.0)
     result = np.ones_like(tau)
     
@@ -73,9 +111,6 @@ def normal_ssf_flat_foil(tau):
     return np.clip(result, 0.0, 1.0)
 
 def interp_trend_extrap(x_new, x_orig, y_orig, n_pts_fit=5, is_loglog=True, is_threshold_rxn=False):
-    """
-    Interpolates data on x_new with low-energy and high-energy extrapolation bounds.
-    """
     mask_orig = (x_orig > 0.0) & (y_orig > 0.0) if is_loglog else (x_orig > 0.0)
     if not np.any(mask_orig):
         return np.interp(x_new, x_orig, y_orig)
@@ -92,7 +127,6 @@ def interp_trend_extrap(x_new, x_orig, y_orig, n_pts_fit=5, is_loglog=True, is_t
     else:
         y_new = np.interp(x_new, x_valid, y_valid)
 
-    # Low-energy extrapolation / threshold floor check
     low_mask = x_new < x_valid[0]
     if np.any(low_mask):
         if is_threshold_rxn:
@@ -109,7 +143,6 @@ def interp_trend_extrap(x_new, x_orig, y_orig, n_pts_fit=5, is_loglog=True, is_t
             else:
                 y_new[low_mask] = y_valid[0]
 
-    # High-energy trend extrapolation (E > max(x_valid))
     high_mask = x_new > x_valid[-1]
     if np.any(high_mask):
         if is_threshold_rxn:
@@ -119,7 +152,6 @@ def interp_trend_extrap(x_new, x_orig, y_orig, n_pts_fit=5, is_loglog=True, is_t
             if n_pts >= 2:
                 p = np.polyfit(log_x_valid[-n_pts:], log_y_valid[-n_pts:], 1)
                 slope, intercept = p[0], p[1]
-                # Clamp steep physical drop-offs for (n,gamma) above 1-2 MeV
                 slope = min(slope, 0.0)
                 if is_loglog:
                     y_new[high_mask] = np.exp(slope * log_x_new[high_mask] + intercept)
@@ -280,48 +312,10 @@ def run_rebinnerize(input_file, num_cols, idx_elow, idx_eup, idx_val, e_min, e_m
         raise RuntimeError(f"rebinnerize.py failed:\n{stderr}")
     return np.loadtxt("out_rebinned")
 
-# ==========================================
-# Main Workflow & Usage Block
-# ==========================================
-
 def print_usage():
     usage_text = """
 ================================================================================
 Spectral-Averaged Cross Section (SACS) Calculator - calculate_sacs3.py
-================================================================================
-
-USAGE:
-  python3 calculate_sacs3.py <nspectrum> <iso> <react> <fthick_mm> <sample_mat> \\
-                             <sample_thick_atoms_per_barn> <bpd> <bin_mode> \\
-                             [extrap_mode] [interp_flag] [fms_file] [--ssf_model MODEL]
-
-POSITIONAL ARGUMENTS:
-  nspectrum                   Neutron spectrum filename located in data/
-  iso                         Target reaction isotope label (e.g., Au197)
-  react                       Reaction channel (ng, n2n, n4n, 102, 16, 41)
-  fthick_mm                   Filter thickness in mm (e.g., 0.0 for bare, 1.0 for B4C)
-  sample_mat                  Sample element label (e.g., Au)
-  sample_thick_atoms_per_barn Target thickness in atoms/barn (0.0 for infinitely dilute)
-  bpd                         Bins per decade for logarithmic energy mesh (e.g., 20)
-  bin_mode                    Integration binning mode:
-                                0 = Late Rebinning (Master Grid integration, high precision)
-                                1 = Early Rebinning (Bin input files first)
-  extrap_mode                 Extrapolation mode (default: 1)
-  interp_flag                 Flux interpolation shape ('1/E' or 'linear', default: '1/E')
-  fms_file                    Path to pointwise Monte Carlo F_ms output file (or NONE)
-
-OPTIONAL ARGUMENTS:
-  --ssf_model MODEL           Self-shielding model:
-                                'normal'    = 1D normal incidence perpendicular beam (default)
-                                'isotropic' = Case's E3 formula for 3D isotropic core flux
-  -h, --help                  Show this usage message and exit
-
-EXAMPLES:
-  1. 10 um Gold foil in TRIGA core spectrum (Normal incidence default):
-     python3 calculate_sacs3.py TRIGA_MarkII_core.dat Au197 ng 0.0 Au 5.906e-4 20 0
-
-  2. 100 um Gold foil in TRIGA core spectrum using Isotropic SSF model:
-     python3 calculate_sacs3.py TRIGA_MarkII_core.dat Au197 ng 0.0 Au 5.906e-3 20 0 --ssf_model isotropic
 ================================================================================
 """
     print(usage_text)
@@ -347,7 +341,6 @@ def main():
     parser.add_argument("interp_flag", nargs="?", default="1/E", help="Flux interpolation shape ('1/E' or 'linear')")
     parser.add_argument("fms_file", nargs="?", default=None, help="Path to pointwise Monte Carlo F_ms output file")
     
-    # SSF Model Switch (Default set to "normal")
     parser.add_argument(
         "--ssf_model",
         type=str,
@@ -399,10 +392,13 @@ def main():
         x_filt, y_filt = load_2col(filter_file)
         x_react, y_react = load_2col(fln_react)
 
+        # Include Fms mesh in master grid if available for exact alignment
         native_grid_list = [x_react[x_react > 0]]
         if args.sample_thick_atoms_per_barn > 0.0:
             x_samp, y_samp = load_2col(fln_sample)
             native_grid_list.append(x_samp[x_samp > 0])
+        if fms_x is not None and len(fms_x) > 0:
+            native_grid_list.append(fms_x[fms_x > 0])
         
         native_grid_list.extend([x_spec[x_spec > 0], x_filt[x_filt > 0]])
         E_master = np.unique(np.concatenate(native_grid_list))
@@ -430,10 +426,8 @@ def main():
     attn_filt = np.where(ff * sigma_filt < 99.0, np.exp(-sigma_filt * ff), 0.0)
     phi_filt = phi_raw * attn_filt
 
-    # Calculate Optical Depth tau
     samp_opt_depth = sigma_samp * args.sample_thick_atoms_per_barn
 
-    # Evaluate Self-Shielding Factor based on User Switch
     if args.sample_thick_atoms_per_barn > 0.0:
         if args.ssf_model == "isotropic":
             ssf_factor = isotropic_ssf_flat_foil(samp_opt_depth)
@@ -445,7 +439,8 @@ def main():
     phi_ssf = phi_filt * ssf_factor
 
     if fms_x is not None and len(fms_x) > 0:
-        fms_grid = np.interp(E_grid, fms_x, fms_y, left=1.0, right=1.0)
+        # Use log-log interpolation for pointwise F_ms onto E_grid
+        fms_grid = np.exp(np.interp(np.log(E_grid), np.log(fms_x), np.log(fms_y), left=0.0, right=0.0))
         fms_grid = np.where(sigma_react > 1.0e-12, fms_grid, 1.0)
         sigma_react_corr = sigma_react * fms_grid
     else:
@@ -459,7 +454,7 @@ def main():
     phi_fit = phi_filt[fit_mask] if np.sum(fit_mask) > 5 else phi_filt
 
     kT_guess = float(E_peak) if E_peak > 0 else 30.0e3
-    A_guess = float(np.sum(phi_fit * dE_grid[fit_mask])) if args.bin_mode == 1 else float(np.trapezoid(phi_fit, E_fit))
+    A_guess = float(np.sum(phi_fit * dE_grid[fit_mask])) if args.bin_mode == 1 else float(log_trapezoid(phi_fit, E_fit))
 
     try:
         with warnings.catch_warnings():
@@ -488,15 +483,16 @@ def main():
         msacs_num = np.sum(msacs_fun(kT, sigma_react_corr[mb_mask], E_grid[mb_mask]) * dE_grid[mb_mask])
         msacs_denom = np.sum(msacs_fun(kT, 1.0, E_grid[mb_mask]) * dE_grid[mb_mask])
     else:
-        nn = np.trapezoid(phi_raw, E_grid)
-        fnn = np.trapezoid(phi_filt, E_grid)
-        sacs = np.trapezoid(phi_raw * sigma_react, E_grid) / nn if nn > 0 else 0.0
-        fsacs = np.trapezoid(phi_filt * sigma_react, E_grid) / fnn if fnn > 0 else 0.0
-        ssfsacs = np.trapezoid(phi_ssf * sigma_react, E_grid) / fnn if fnn > 0 else 0.0
-        ms_sacs = np.trapezoid(phi_ssf * sigma_react_corr, E_grid) / fnn if fnn > 0 else 0.0
+        # Integrated with Logarithmic Quadrature (log_trapezoid)
+        nn = log_trapezoid(phi_raw, E_grid)
+        fnn = log_trapezoid(phi_filt, E_grid)
+        sacs = log_trapezoid(phi_raw * sigma_react, E_grid) / nn if nn > 0 else 0.0
+        fsacs = log_trapezoid(phi_filt * sigma_react, E_grid) / fnn if fnn > 0 else 0.0
+        ssfsacs = log_trapezoid(phi_ssf * sigma_react, E_grid) / fnn if fnn > 0 else 0.0
+        ms_sacs = log_trapezoid(phi_ssf * sigma_react_corr, E_grid) / fnn if fnn > 0 else 0.0
         
-        msacs_num = np.trapezoid(msacs_fun(kT, sigma_react_corr[mb_mask], E_grid[mb_mask]), E_grid[mb_mask])
-        msacs_denom = np.trapezoid(msacs_fun(kT, 1.0, E_grid[mb_mask]), E_grid[mb_mask])
+        msacs_num = log_trapezoid(msacs_fun(kT, sigma_react_corr[mb_mask], E_grid[mb_mask]), E_grid[mb_mask])
+        msacs_denom = log_trapezoid(msacs_fun(kT, 1.0, E_grid[mb_mask]), E_grid[mb_mask])
 
     ssfact = ssfsacs / fsacs if fsacs > 0 else 1.0
 
