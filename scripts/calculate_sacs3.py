@@ -357,7 +357,7 @@ def main():
     fln_sample = resolve_sample_file(args.sample_mat) if args.sample_thick_atoms_per_barn > 0.0 else None
 
     ff = 0.1 * args.fthick_mm
-    E1, E2 = 1.0e-3, 1.0e8
+    E1, E2 = 1.0e-3, 1.0e9
 
     react_clean = str(args.react).lower().strip()
     is_threshold_rxn = react_clean in ["n2n", "n,2n", "16", "n4n", "n,4n", "41", "17"]
