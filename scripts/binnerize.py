@@ -95,16 +95,16 @@ def prompt_read(prompt_msg):
 
 def read_config():
     """Reads configuration parameters line-by-line with interactive prompts."""
-    filename = prompt_read("Enter input data filename: ")
+    filename = prompt_read("#Enter input data filename: ")
     
-    line2_str = prompt_read("Enter column configuration (<num_cols> <idx_x> <idx_y> [idx_err]): ")
+    line2_str = prompt_read("#Enter column configuration (<num_cols> <idx_x> <idx_y> [idx_err]): ")
     line2 = line2_str.split()
     num_cols = int(line2[0])
     idx_x = int(line2[1]) - 1
     idx_y = int(line2[2]) - 1
     idx_err = int(line2[3]) - 1 if num_cols > 3 and len(line2) > 3 else None
     
-    line3_str = prompt_read("Enter binning parameters (<e_min> <e_max> <scale_type> <num_bins/bpd> <interp_type> [iflag]): ")
+    line3_str = prompt_read("#Enter binning parameters (<e_min> <e_max> <scale_type> <num_bins/bpd> <interp_type> [iflag]): ")
     line3 = line3_str.split()
     e_min_new = float(line3[0])
     e_max_new = float(line3[1])
@@ -118,8 +118,8 @@ def read_config():
     grid_idx_eup = None
 
     if num_bins_param == 0:
-        grid_filename = prompt_read("Enter target grid filename: ")
-        line5_str = prompt_read("Enter grid column layout (<grid_num_cols> <grid_idx_elow> <grid_idx_eup>): ")
+        grid_filename = prompt_read("#Enter target grid filename: ")
+        line5_str = prompt_read("#Enter grid column layout (<grid_num_cols> <grid_idx_elow> <grid_idx_eup>): ")
         line5 = line5_str.split()
         grid_idx_elow = int(line5[1]) - 1
         grid_idx_eup  = int(line5[2]) - 1
