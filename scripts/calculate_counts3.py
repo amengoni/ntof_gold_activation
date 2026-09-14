@@ -226,11 +226,17 @@ def calculate_counts_from_cols(cols, flux_variant="MCecc", bpd=200):
     # Equivalent standard 7e12 proton pulses
     equivalent_pulses = total_protons / PROTONS_PER_STANDARD_PULSE
 
-    # Total integrated neutron fluence density hitting the sample [neutrons/cm2]
-    if "Z21" in spectrum_file or "EAR1" in spectrum_file or "Z22" in spectrum_file or "EAR2" in spectrum_file:
-        phi_tot = (f_nn_pulse / area_cm2) * equivalent_pulses * bif
+    # Unambiguous Calculation of Total Neutrons & Fluence Density
+    is_beamline_area = any(b in spectrum_file for b in ["Z21", "EAR1", "Z22", "EAR2"])
+
+    if is_beamline_area:
+        # f_nn_pulse is already total integrated neutrons over beam spot
+        total_neutrons_sample = f_nn_pulse * equivalent_pulses * bif
+        phi_tot = total_neutrons_sample / area_cm2
     else:
+        # f_nn_pulse is fluence density [neutrons/cm2/pulse] (e.g., NEAR)
         phi_tot = f_nn_pulse * equivalent_pulses * bif
+        total_neutrons_sample = phi_tot * area_cm2
 
     # 5. Activation Calculation using channel-specific decay constant
     R = (NT * phi_tot * sigma_cm2) / tirr_s
@@ -243,7 +249,7 @@ def calculate_counts_from_cols(cols, flux_variant="MCecc", bpd=200):
     counts_calc = (A0 / lam) * np.exp(-lam * twait_s) * (1.0 - np.exp(-lam * tcount_s)) * epsi * Igam
 
     display_react = "n4n" if react == "41" else react
-    return area, sample_name, line_id, display_react, fthick_mm, mass_g, diam_mm, thick_mm, sacs_b, f_sacs_b, ssf_sacs_b, ms_sacs_b, phi_tot, a0_per_g, counts_calc, c_table, ratio_val(counts_calc, c_table), bif, spectrum_file, fms_found
+    return area, sample_name, line_id, display_react, fthick_mm, mass_g, diam_mm, thick_mm, sacs_b, f_sacs_b, ssf_sacs_b, ms_sacs_b, total_neutrons_sample, a0_per_g, counts_calc, c_table, ratio_val(counts_calc, c_table), bif, spectrum_file, fms_found
 
 
 def ratio_val(c_calc, c_table):
@@ -347,7 +353,7 @@ def main():
 
     # Tight Header Definition with exactly 1 blank space between heading tags
     header_fmt1 = f"#{'1':<10} {'2':<9} {'3':<4} {'4':<5} {'5':<10} {'6':<8} {'7':<8} {'8':<9} {'9':<10} {'10':<10} {'11':<10} {'12':<10} {'13':<14} {'14':<12} {'15':<11} {'16':<11} {'17':<10} {'18':<6}"
-    header_fmt2 = f"#{'area':<9} {'sample':<9} {'line':<4} {'react':<5} {'fthick[mm]':<10} {'mass[g]':<8} {'diam[mm]':<8} {'thick[mm]':<9} {'SACS[b]':<10} {'f-SACS[b]':<10} {'ssf-SACS[b]':<10} {'ms-SACS[b]':<10} {'n_total[n/cm2]':<14} {'A0[Bq/g]':<12} {'Cgam_calc':<11} {'Cgam_exp':<11} {'Ratio(C/E)':<10} {'BIF':<6}"
+    header_fmt2 = f"#{'area':<9} {'sample':<9} {'line':<4} {'react':<5} {'fthick[mm]':<10} {'mass[g]':<8} {'diam[mm]':<8} {'thick[mm]':<9} {'SACS[b]':<10} {'f-SACS[b]':<10} {'ssf-SACS[b]':<10} {'ms-SACS[b]':<10} {'n_tot_sample':<14} {'A0[Bq/g]':<12} {'Cgam_calc':<11} {'Cgam_exp':<11} {'Ratio(C/E)':<10} {'BIF':<6}"
     divider_line = "#" * len(header_fmt2)
 
     table_headers = f"{header_fmt1}\n{header_fmt2}\n{divider_line}"
@@ -356,10 +362,10 @@ def main():
     output_lines = meta_headers + [table_headers]
 
     for res_tuple in processed_results:
-        area, sample_name, line_id, react, fthick_mm, mass_g, diam_mm, thick_mm, sacs_b, f_sacs, ssf_sacs, ms_sacs, phi_tot, a0_per_g, c_calc, c_table, ratio, bif, spec_used, fms_found = res_tuple
+        area, sample_name, line_id, react, fthick_mm, mass_g, diam_mm, thick_mm, sacs_b, f_sacs, ssf_sacs, ms_sacs, total_neutrons, a0_per_g, c_calc, c_table, ratio, bif, spec_used, fms_found = res_tuple
 
         # Data formatting matching exact field widths with single-space separators
-        line_str = f"{area:<10} {sample_name:<9} {line_id:<4} {react:<5} {fthick_mm:<10.2f} {mass_g:<8.4f} {diam_mm:<8.1f} {thick_mm:<9.4f} {sacs_b:<10.3f} {f_sacs:<10.3f} {ssf_sacs:<10.3f} {ms_sacs:<10.3f} {phi_tot:<14.3e} {a0_per_g:<12.3e} {c_calc:<11.3e} {c_table:<11.3e} {ratio:<10.3f} {bif:<6.4f}"
+        line_str = f"{area:<10} {sample_name:<9} {line_id:<4} {react:<5} {fthick_mm:<10.2f} {mass_g:<8.4f} {diam_mm:<8.1f} {thick_mm:<9.4f} {sacs_b:<10.3f} {f_sacs:<10.3f} {ssf_sacs:<10.3f} {ms_sacs:<10.3f} {total_neutrons:<14.3e} {a0_per_g:<12.3e} {c_calc:<11.3e} {c_table:<11.3e} {ratio:<10.3f} {bif:<6.4f}"
         print(line_str)
         output_lines.append(line_str)
 
