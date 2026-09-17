@@ -36,34 +36,38 @@ USAGE_TEXT = """
 Usage Examples:
   python3 scripts/calculate_counts3.py
   python3 scripts/calculate_counts3.py input_NEAR_BurialDating MCecc 200
-  python3 scripts/calculate_counts3.py input_EAR1CC_BurialDating MCecc 500
+  python3 scripts/calculate_counts3.py input_EAR1CC_BurialDating -f XXX-YYYYY
 """
 
-def resolve_spectrum_file(area, flux_variant="MCecc"):
+def resolve_spectrum_file(area, flux_variant="MCecc", explicit_flux=None):
     """
-    Resolves neutron spectrum filename from area string and validates
-    that the corresponding file exists in the data/ folder.
+    Resolves neutron spectrum filename.
+    If explicit_flux (-f) is provided, it is used directly as the filename inside data/.
+    Otherwise, default mappings based on area are used.
     """
-    area_clean = str(area).strip()
-    
-    if area_clean == "NEAR":
-        spectrum_file = f"NEAR-{flux_variant}"
-    elif area_clean == "EAR1CC":
-        spectrum_file = "Z21-EAR1"
-    elif area_clean in ["EAR1FC", "EAR1"]:
-        spectrum_file = "Z21-EAR1FC"
-    elif area_clean == "EAR2":
-        spectrum_file = "Z22-EAR2"
+    if explicit_flux:
+        spectrum_file = explicit_flux.strip()
     else:
-        spectrum_file = f"{area_clean}-{flux_variant}"
+        area_clean = str(area).strip()
+        
+        if area_clean in ["EAR1", "EAR1CC"]:
+            spectrum_file = "Z21-EAR1"
+        elif area_clean == "EAR1FC":
+            spectrum_file = "Z21-EAR1FC"
+        elif area_clean == "EAR2":
+            spectrum_file = "Z22-EAR2"
+        elif area_clean == "NEAR":
+            spectrum_file = "NEAR-MCecc"
+        else:
+            spectrum_file = f"{area_clean}-{flux_variant}"
 
     target_path = os.path.join("data", spectrum_file)
 
     if not os.path.exists(target_path):
         sys.stderr.write(
-            f"\n[FATAL ERROR] Spectrum file error for area '{area_clean}' with variant '{flux_variant}':\n"
+            f"\n[FATAL ERROR] Spectrum file error:\n"
             f"  Expected file path : '{target_path}'\n"
-            f"  Status            : FILE NOT FOUND or INCOMPATIBLE VARIANT\n"
+            f"  Status            : FILE NOT FOUND\n"
             f"Execution terminated.\n\n"
         )
         sys.exit(1)
@@ -102,7 +106,7 @@ def get_decay_constant(line_id):
     return np.log(2.0) / t_half
 
 
-def calculate_counts_from_cols(cols, flux_variant="MCecc", bpd=200):
+def calculate_counts_from_cols(cols, flux_variant="MCecc", bpd=200, explicit_flux=None):
     """
     Computes total calculated counts using zero-indexed positional columns
     via calculate_sacs3.py. Automatically detects and applies pointwise 
@@ -163,7 +167,7 @@ def calculate_counts_from_cols(cols, flux_variant="MCecc", bpd=200):
                 f"Input table thick_mm: {thick_calc_mm:.4f} mm\n"
             )
 
-    spectrum_file = resolve_spectrum_file(area, flux_variant)
+    spectrum_file = resolve_spectrum_file(area, flux_variant, explicit_flux=explicit_flux)
 
     # Resolve exact path to calculate_sacs3.py relative to this script file
     sacs_script_path = os.path.join(script_dir, "calculate_sacs3.py")
@@ -289,6 +293,10 @@ def main():
         "bpd", nargs="?", type=int, default=200,
         help="Bins per decade for external binning (default: 200)"
     )
+    parser.add_argument(
+        "-f", "--flux", default=None,
+        help="Explicit flux file inside data/ directory (e.g. XXX-YYYYY). Overrides area-based resolving entirely."
+    )
 
     if len(sys.argv) == 1 and not os.path.exists("input_NEAR"):
         parser.print_help()
@@ -306,7 +314,7 @@ def main():
     areas_present = set(str(cols[0]).strip() for cols in data_rows)
 
     resolved_spectrums = sorted(list(set(
-        resolve_spectrum_file(cols[0], args.flux_variant) for cols in data_rows
+        resolve_spectrum_file(cols[0], args.flux_variant, explicit_flux=args.flux) for cols in data_rows
     )))
     spec_str = ", ".join(resolved_spectrums)
 
@@ -316,7 +324,7 @@ def main():
 
     for cols in data_rows:
         res_tuple = calculate_counts_from_cols(
-            cols, flux_variant=args.flux_variant, bpd=args.bpd
+            cols, flux_variant=args.flux_variant, bpd=args.bpd, explicit_flux=args.flux
         )
         fms_found = res_tuple[-1]
         if not fms_found:
@@ -334,7 +342,7 @@ def main():
         f"# F_ms Correction Mode  : {fms_status_msg}"
     ]
 
-    if "NEAR" in areas_present:
+    if "NEAR" in areas_present and not args.flux:
         meta_headers.append(f"# NEAR Variant Option   : {args.flux_variant}")
 
     meta_headers.extend([

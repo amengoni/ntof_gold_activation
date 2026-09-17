@@ -110,7 +110,7 @@ def normal_ssf_flat_foil(tau):
         
     return np.clip(result, 0.0, 1.0)
 
-def interp_trend_extrap(x_new, x_orig, y_orig, n_pts_fit=5, is_loglog=True, is_threshold_rxn=False):
+def interp_trend_extrap(x_new, x_orig, y_orig, n_pts_fit=5, is_loglog=True, is_threshold_rxn=False, extrap_mode=1):
     mask_orig = (x_orig > 0.0) & (y_orig > 0.0) if is_loglog else (x_orig > 0.0)
     if not np.any(mask_orig):
         return np.interp(x_new, x_orig, y_orig)
@@ -128,6 +128,17 @@ def interp_trend_extrap(x_new, x_orig, y_orig, n_pts_fit=5, is_loglog=True, is_t
         y_new = np.interp(x_new, x_valid, y_valid)
 
     low_mask = x_new < x_valid[0]
+    high_mask = x_new > x_valid[-1]
+
+    # If extrapolation is disabled (extrap_mode == 0)
+    if not extrap_mode:
+        if np.any(low_mask):
+            y_new[low_mask] = 0.0
+        if np.any(high_mask):
+            y_new[high_mask] = 0.0 if not is_threshold_rxn else y_valid[-1]
+        return y_new
+
+    # Extrapolation enabled (extrap_mode == 1)
     if np.any(low_mask):
         if is_threshold_rxn:
             y_new[low_mask] = 0.0
@@ -143,7 +154,6 @@ def interp_trend_extrap(x_new, x_orig, y_orig, n_pts_fit=5, is_loglog=True, is_t
             else:
                 y_new[low_mask] = y_valid[0]
 
-    high_mask = x_new > x_valid[-1]
     if np.any(high_mask):
         if is_threshold_rxn:
             y_new[high_mask] = y_valid[-1]
@@ -317,6 +327,28 @@ def print_usage():
 ================================================================================
 Spectral-Averaged Cross Section (SACS) Calculator - calculate_sacs3.py
 ================================================================================
+
+Usage:
+  python3 calculate_sacs3.py nspectrum iso react fthick_mm sample_mat \\
+                             sample_thick bpd bin_mode [extrap_mode] [interp_flag] [fms_file]
+
+Positional Arguments:
+  nspectrum     Neutron spectrum filename (located in data/)
+  iso           Target reaction isotope (e.g., Au197)
+  react         Reaction channel (e.g., ng, n2n, n4n, or ENDF reaction code)
+  fthick_mm     Filter thickness in mm
+  sample_mat    Sample element label (e.g., Au)
+  sample_thick  Target thickness in atoms/barn
+  bpd           Bins per decade
+  bin_mode      Binning mode: 0 = Late Rebin/Bin (Master Grid), 1 = Early Rebin/Bin
+
+Optional Arguments:
+  extrap_mode   Extrapolation mode: 1 = Enabled (default), 0 = Disabled
+  interp_flag   Flux interpolation shape: '1/E' (default) or 'linear'
+  fms_file      Path to pointwise Monte Carlo F_ms output file (optional)
+
+Optional Flags:
+  --ssf_model   Self-shielding model: 'normal' (default) or 'isotropic'
 """
     print(usage_text)
 
@@ -337,7 +369,7 @@ def main():
     parser.add_argument("sample_thick_atoms_per_barn", type=float, help="Target thickness in atoms/barn")
     parser.add_argument("bpd", type=float, help="Bins per decade")
     parser.add_argument("bin_mode", type=int, choices=[0, 1], help="Binning mode: 0=Late, 1=Early")
-    parser.add_argument("extrap_mode", nargs="?", default="1", help="Extrapolation mode (default: 1)")
+    parser.add_argument("extrap_mode", nargs="?", type=int, default=1, help="Extrapolation mode (1=enabled [default], 0=disabled)")
     parser.add_argument("interp_flag", nargs="?", default="1/E", help="Flux interpolation shape ('1/E' or 'linear')")
     parser.add_argument("fms_file", nargs="?", default=None, help="Path to pointwise Monte Carlo F_ms output file")
     
@@ -415,13 +447,13 @@ def main():
 
         if args.interp_flag == "1/E":
             y_spec_weighted = y_spec * x_spec
-            phi_raw = interp_trend_extrap(E_grid, x_spec, y_spec_weighted, n_pts_fit=5, is_loglog=True) / E_grid
+            phi_raw = interp_trend_extrap(E_grid, x_spec, y_spec_weighted, n_pts_fit=5, is_loglog=True, extrap_mode=args.extrap_mode) / E_grid
         else:
-            phi_raw = interp_trend_extrap(E_grid, x_spec, y_spec, n_pts_fit=5, is_loglog=True)
+            phi_raw = interp_trend_extrap(E_grid, x_spec, y_spec, n_pts_fit=5, is_loglog=True, extrap_mode=args.extrap_mode)
 
-        sigma_filt = interp_trend_extrap(E_grid, x_filt, y_filt, n_pts_fit=5, is_loglog=True)
-        sigma_react = interp_trend_extrap(E_grid, x_react, y_react, n_pts_fit=5, is_loglog=True, is_threshold_rxn=is_threshold_rxn)
-        sigma_samp = interp_trend_extrap(E_grid, x_samp, y_samp, n_pts_fit=5, is_loglog=True) if args.sample_thick_atoms_per_barn > 0.0 else np.zeros_like(E_grid)
+        sigma_filt = interp_trend_extrap(E_grid, x_filt, y_filt, n_pts_fit=5, is_loglog=True, extrap_mode=args.extrap_mode)
+        sigma_react = interp_trend_extrap(E_grid, x_react, y_react, n_pts_fit=5, is_loglog=True, is_threshold_rxn=is_threshold_rxn, extrap_mode=args.extrap_mode)
+        sigma_samp = interp_trend_extrap(E_grid, x_samp, y_samp, n_pts_fit=5, is_loglog=True, extrap_mode=args.extrap_mode) if args.sample_thick_atoms_per_barn > 0.0 else np.zeros_like(E_grid)
 
     attn_filt = np.where(ff * sigma_filt < 99.0, np.exp(-sigma_filt * ff), 0.0)
     phi_filt = phi_raw * attn_filt
@@ -528,7 +560,7 @@ def main():
         binned_mb[:, 2] = np.where(binned_mb[:, 2] < 1.0e-99, 0.0, binned_mb[:, 2])
 
         e_mid_out = 0.5 * (binned_raw[:, 0] + binned_raw[:, 1])
-        xs_vals = interp_trend_extrap(e_mid_out, x_react, y_react, n_pts_fit=5, is_loglog=True, is_threshold_rxn=is_threshold_rxn)
+        xs_vals = interp_trend_extrap(e_mid_out, x_react, y_react, n_pts_fit=5, is_loglog=True, is_threshold_rxn=is_threshold_rxn, extrap_mode=args.extrap_mode)
         binned_xs = np.column_stack((binned_raw[:, 0], binned_raw[:, 1], xs_vals))
     else:
         binned_raw = np.column_stack((e_low, e_up, phi_raw))
@@ -556,6 +588,7 @@ def main():
         f"binning mode     : {mode_str}\n"
         f"ssf model        : {args.ssf_model}\n"
         f"flux interp flag : {args.interp_flag}\n"
+        f"extrap mode      : {args.extrap_mode}\n"
         f"filter thickness : {args.fthick_mm:8.1f} mm\n"
         f"sample thickness : {args.sample_thick_atoms_per_barn:8.3e} atoms/b\n"
         f"kT fitted        : {kt_str} ({kT:10.3e} eV)\n"
@@ -577,6 +610,7 @@ def main():
     print(f"# SSF Model       : {args.ssf_model}")
     print(f"# nspectrum       : {args.nspectrum}")
     print(f"# Interp Flag     : {args.interp_flag}")
+    print(f"# Extrap Mode     : {args.extrap_mode}")
     print(f"# kT-fitted       : {kt_str} ({kT:10.3e} eV)")
     print(f"# MB-SACS      [b]: {msacs:10.3e}")
     print(f"# MACS         [b]: {macs:10.3e}")

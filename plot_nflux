@@ -1,0 +1,29 @@
+#
+
+set title "NEAR Station neutron flux"
+set xlabel "neutron energy [eV]" 
+set ylabel "neutron flux dn/dlog(E) [n/cm2/7e12p]" 
+
+fln1="data/NEAR-MCecc"
+fln2="data/NEAR-SKopanos-nomod-20cm"
+
+set xrange [0.01:1.e+9]
+stats fln1 u (($2-$1)*$3) nooutput
+nflux1=STATS_sum
+stats fln2 u (($2-$1)*$3) nooutput
+nflux2=STATS_sum
+
+lab1=sprintf("MCecchetto     : %8.2e n/cm2/7e12p",nflux1); 
+lab2=sprintf("SKopanos-nomod : %2.2e n/cm2/7e12p",nflux2); 
+
+set logscale
+set grid
+set key left
+set xtics 10
+
+set xrange [0.001:1.e+9]
+
+plot fln1 u 1:($3*sqrt($1*$2)) w steps lw 2 t lab1,\
+     fln2 u 1:($3*sqrt($1*$2)) w steps lw 2 t lab2
+
+
