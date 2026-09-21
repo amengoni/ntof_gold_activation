@@ -29,13 +29,13 @@ PROTONS_PER_STANDARD_PULSE = 7.0e12
 TARGET_ISO = "Au197"
 SAMPLE_MAT = "Au"
 DEFAULT_BIN_MODE = "0"
-DEFAULT_EXTRAP_MODE = "1"
 DEFAULT_INTERP_FLAG = "1/E"  # Hard-coded to 1/E interpolation
 
 USAGE_TEXT = """
 Usage Examples:
   python3 scripts/calculate_counts3.py
-  python3 scripts/calculate_counts3.py input_NEAR_BurialDating MCecc 200
+  python3 scripts/calculate_counts3.py input_NEAR_BurialDating MCecc 200 1
+  python3 scripts/calculate_counts3.py input_EAR1CC_BurialDating CCeval-EAR1 200 0
   python3 scripts/calculate_counts3.py input_EAR1CC_BurialDating -f XXX-YYYYY
 """
 
@@ -43,10 +43,18 @@ def resolve_spectrum_file(area, flux_variant="MCecc", explicit_flux=None):
     """
     Resolves neutron spectrum filename.
     If explicit_flux (-f) is provided, it is used directly as the filename inside data/.
+    If flux_variant is supplied and matches a file directly in data/, it takes priority.
     Otherwise, default mappings based on area are used.
     """
     if explicit_flux:
         spectrum_file = explicit_flux.strip()
+    elif flux_variant and flux_variant != "MCecc":
+        direct_path = os.path.join("data", flux_variant.strip())
+        if os.path.exists(direct_path):
+            spectrum_file = flux_variant.strip()
+        else:
+            area_clean = str(area).strip()
+            spectrum_file = f"{area_clean}-{flux_variant.strip()}"
     else:
         area_clean = str(area).strip()
         
@@ -106,7 +114,7 @@ def get_decay_constant(line_id):
     return np.log(2.0) / t_half
 
 
-def calculate_counts_from_cols(cols, flux_variant="MCecc", bpd=200, explicit_flux=None):
+def calculate_counts_from_cols(cols, flux_variant="MCecc", bpd=200, extrap_mode=1, explicit_flux=None):
     """
     Computes total calculated counts using zero-indexed positional columns
     via calculate_sacs3.py. Automatically detects and applies pointwise 
@@ -183,7 +191,7 @@ def calculate_counts_from_cols(cols, flux_variant="MCecc", bpd=200, explicit_flu
         str(atoms_per_barn),     # <sample_thick_atoms_per_barn>
         str(bpd),                # <bpd>
         DEFAULT_BIN_MODE,        # fine-grid option
-        DEFAULT_EXTRAP_MODE,     # neutron flux extrapolation option
+        str(extrap_mode),        # neutron flux extrapolation option (dynamic)
         DEFAULT_INTERP_FLAG,     # neutron flux interpolation shape option ("1/E")
         fms_file                 # Pointwise F_ms cross-section file path (or 'NONE')
     ]
@@ -294,6 +302,10 @@ def main():
         help="Bins per decade for external binning (default: 200)"
     )
     parser.add_argument(
+        "extrap_mode", nargs="?", type=int, default=1, choices=[0, 1],
+        help="Extrapolation mode for calculate_sacs3.py: 1 = Enabled (default), 0 = Disabled"
+    )
+    parser.add_argument(
         "-f", "--flux", default=None,
         help="Explicit flux file inside data/ directory (e.g. XXX-YYYYY). Overrides area-based resolving entirely."
     )
@@ -324,7 +336,7 @@ def main():
 
     for cols in data_rows:
         res_tuple = calculate_counts_from_cols(
-            cols, flux_variant=args.flux_variant, bpd=args.bpd, explicit_flux=args.flux
+            cols, flux_variant=args.flux_variant, bpd=args.bpd, extrap_mode=args.extrap_mode, explicit_flux=args.flux
         )
         fms_found = res_tuple[-1]
         if not fms_found:
@@ -352,7 +364,7 @@ def main():
         f"# SACS Sample Material  : {SAMPLE_MAT}",
         f"# SACS Bins per Decade  : {args.bpd}",
         f"# SACS Binning Mode     : {DEFAULT_BIN_MODE} (Master grid)",
-        f"# SACS Extrapolation    : {DEFAULT_EXTRAP_MODE}",
+        f"# SACS Extrapolation    : {args.extrap_mode}",
         f"# SACS Interp Flag      : {DEFAULT_INTERP_FLAG}"
     ])
 

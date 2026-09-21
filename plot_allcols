@@ -1,0 +1,61 @@
+#
+macs_fun(kT,sig,E)     = 2./sqrt(pi)*(1./kT**2)*E*sig*exp(-E/kT)
+msacs_fun(kT,xs,E)      = (1./kT**2)*E*xs*exp(-E/kT)
+msacs_int(kT,xs,E1,E2) = xs*(1./kT)*((E1+kT)*exp(-E1/kT) - (E2+kT)*exp(-E2/kT))
+step_fun(kT,fw,E)      = (E > kT*(1.-0.25*fw) && E < kT*(1.+10.00*fw) ? 1.0 : 0.0)
+
+set fit quiet
+#
+# 
+
+fln="allcols"
+if(ARG1 ne ""){fln=ARG1}
+#kT=ARG2
+#sacs=ARG3
+#fsacs=ARG4
+#ssfsacs=ARG5
+#mbsacs=ARG6
+
+
+set grid
+set key left
+set logscale x
+set xrange [:100.e+6]
+set xtics 10
+set format x "10^{%T}"
+set ytics nomirror
+set xlabel "neutron energy [eV]"
+set ylabel "neutron flux dn/dlog(E) [n/cm2/E+12p]"
+unset logscale y2
+set y2tics 0.1
+set y2range [0:1]
+set y2label "cumulative SACS"
+
+
+stats fln u (($2-$1)*$3) nooutput; nn=STATS_sum
+stats fln u (($2-$1)*$4) nooutput; fnn=STATS_sum
+stats fln u (($2-$1)*$5) nooutput; ssfnn=STATS_sum
+stats fln u (($2-$1)*$5) nooutput; mbnn=STATS_sum
+
+stats fln u (($2-$1)*$3*$7) nooutput; sacs=STATS_sum/nn
+stats fln u (($2-$1)*$4*$7) nooutput; fsacs=STATS_sum/fnn
+stats fln u (($2-$1)*$5*$7) nooutput; ssfsacs=STATS_sum/ssfnn
+stats fln u (($2-$1)*$6*$7) nooutput; mbsacs=STATS_sum/mbnn
+
+#      1           2             3           4           5             6          7 
+#   elow[eV]     eup[eV]       nflux       f-nflux     ssf-nflux    mb-nflux    iso_xs[b]
+        
+#prt=sprintf("kT    [keV]: %8.3f",kT/1000.); print prt
+prt=sprintf("SACS    [b]: %8.3f",sacs); print prt
+prt=sprintf("f-SACS  [b]: %8.3f",fsacs); print prt
+prt=sprintf("f-SACS  [b]: %8.3f (self-shielded)",ssfsacs); print prt
+
+plot fln u ($1):($4) w steps lw 2 lt 1 t"f-nflux",\
+     fln u ($1):($6) w steps lw 2 lt 2 t"m-nflux",\
+     fln u ($1):(($2-$1)*$4*$7/fsacs/fnn) smooth cumul axis x1y2 w steps lw 3 t"cumul sacs",\
+     fln u ($1):(($2-$1)*$6*$7/mbsacs/mbnn) smooth cumul axis x1y2 w steps lw 3 t"cumul mb-sacs"
+
+pause -1 "Press enter to continue..."
+fln_plot = "figures/allcols_cumulplot.png"
+set output fln_plot; set term pngcairo size 1024,768 font 'arial,14'; replot; unset output; set term x11
+
