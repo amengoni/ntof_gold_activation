@@ -33,22 +33,23 @@ plot ave1_NF w l lw 1 lt -1 not,\
      fln1 u ($0+1):(($3==11 | $3==12) && $5 == 0.0 ? $17:1/0):xtic((($3==11 | $3==12) && $5 == 0.0) ? stringcolumn(2) : "") w p pt 5 ps 1.5 lt 1 t lab_ng_NF
 
 pause -1
-if(dofigs eq "yes"){set output "figures/plot_NEARNF_N14.png"; set term pngcairo noenhanced size 2480,1748 font 'arial,40' linewidth 4 ps 4; replot; set term x11}
+if(dofigs eq "yes"){set output "figures/plot_new_NEARNF_N14.png"; set term pngcairo noenhanced size 2480,1748 font 'arial,40' linewidth 4 ps 4; replot; set term x11}
 
 
 
 
 
 # --- STATS CALCULATION FOR FILTERED (fthick > 0) ---
-fln2="alltables/newtable_NEARWF_N14_ng"
+#fln2="alltables/newtable_NEARWF_N14_ng"
 set xrange [*:*]; set yrange [*:*]
+fln2="alltables/newtable_NEARWF_N14_ng"
 stats fln2 u ($17) nooutput
 ave1_WF=STATS_mean; std1_WF=STATS_stddev
 xmax=STATS_records+1
 fthick=STATS_mean
 
 set key box width 3
-tit=sprintf("NEAR capture lines with B4C filters"); set title tit
+tit=sprintf("NEAR capture lines with B4C filters: %3.2f +/- %2.1f%%", ave1_WF, std1_WF/ave1_WF*100); set title tit
 lab_ng_WF=sprintf("capture lines: %3.2f +/- %2.1f%% ", ave1_WF, std1_WF/ave1_WF*100.0)
 lab_WF_10=sprintf("B4C 10 mm")
 lab_WF_15=sprintf("B4C 15 mm")
@@ -57,18 +58,19 @@ lab_WF_30=sprintf("B4C 30 mm")
 
 #set xlabel "B4C filter thickness [mm]"
 set xrange [0:13]
-set yrange [0:0.3]
+set yrange [0:1.0]
+
 # --- PLOT 2: FILTERED (fthick > 0) ---
 plot fln2 u ($0+1):(ave1_WF-std1_WF):(ave1_WF+std1_WF) with filledcurves lc "skyblue" fs transparent solid 0.5 not,\
      ave1_WF w l lw 1 lt -1 not,\
-     fln2 u ($0+1):($5 == 10.0 ? $17:1/0):xtic(stringcolumn(2)) w p pt 5 ps 1.5 lt 1 t lab_WF_10,\
-     fln2 u ($0+1):($5 == 15.0 ? $17:1/0):xtic(stringcolumn(2)) w p pt 5 ps 1.5 lt 4 t lab_WF_15,\
-     fln2 u ($0+1):($5 == 30.0 ? $17:1/0):xtic(stringcolumn(2)) w p pt 5 ps 1.5 lt 7 t lab_WF_30
+     fln2 u ($0+1):((($3==11 | $3==12)) && $5 == 10.0 ? $17:1/0):xtic(stringcolumn(2)) w p pt 5 ps 1.5 lt 1 t lab_WF_10,\
+     fln2 u ($0+1):((($3==11 | $3==12)) && $5 == 15.0 ? $17:1/0):xtic(stringcolumn(2)) w p pt 5 ps 1.5 lt 4 t lab_WF_15,\
+     fln2 u ($0+1):((($3==11 | $3==12)) && $5 == 30.0 ? $17:1/0):xtic(stringcolumn(2)) w p pt 5 ps 1.5 lt 7 t lab_WF_30
 
 #    fln2 u ($0+1):(($3==11 | $3==12) && $5 > 0.0 ? $17:1/0):xtic((($3==11 | $3==12) && $5 > 0.0) ? stringcolumn(2) : "") w p pt 5 ps 1 lt 1 t lab_ng_WF
 
 pause -1
-if(dofigs eq "yes"){set pointsize 3.0; set output "figures/plot_NEARWF_N14.png"; set term pngcairo noenhanced size 2480,1748 font 'arial,32' linewidth 4 ps 4; replot; set term x11}
+if(dofigs eq "yes"){set pointsize 3.0; set output "figures/plot_new_NEARWF_N14.png"; set term pngcairo noenhanced size 2480,1748 font 'arial,32' linewidth 4 ps 4; replot; set term x11}
 
 
 
@@ -81,7 +83,7 @@ xmax=STATS_records+1
 fthick=STATS_mean
 
 set key box width 3
-tit=sprintf("NEAR (n,2n) lines with B4C filters"); set title tit
+tit=sprintf("NEAR (n,2n) lines with B4C filters: %3.2f +/- %2.1f%%", ave1_WF, std1_WF/ave1_WF*100); set title tit
 #lab_ng_WF=sprintf("capture lines: %3.2f +/- %2.1f%% ", ave1_WF, std1_WF/ave1_WF*100.0)
 lab_WF_10=sprintf("B4C 10 mm")
 lab_WF_15=sprintf("B4C 15 mm")
@@ -99,5 +101,5 @@ plot fln3 u ($5 > 0 ? $0+1:1/0):(ave1_WF-std1_WF):(ave1_WF+std1_WF) with filledc
 
 
 pause -1
-if(dofigs eq "yes"){set pointsize 3.0; set output "figures/plot_NEAR_n2n_N14.png"; set term pngcairo noenhanced size 2480,1748 font 'arial,32' linewidth 4 ps 4; replot; set term x11}
+if(dofigs eq "yes"){set pointsize 3.0; set output "figures/plot_new_NEAR_n2n_N14.png"; set term pngcairo noenhanced size 2480,1748 font 'arial,32' linewidth 4 ps 4; replot; set term x11}
 

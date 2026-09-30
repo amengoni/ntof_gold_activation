@@ -1,5 +1,18 @@
+# Input Table           : inputs/input_NEAR_N14
+# Resolved Spectrum(s)  : NEAR-SKopanos-wmod-20cm
+# F_ms Correction Mode  : Auto-detect per sample line (tempfiles/fms_*.dat)
+# NEAR Variant Option   : SKopanos-wmod-20cm
+# Neutron Flux Shape    : 1/E
 # SACS Engine           : Python (calculate_sacs3.py)
+# SACS Target Isotope   : Au197
+# SACS Sample Material  : Au
+# SACS Bins per Decade  : 200
 # SACS Binning Mode     : 0 (Master grid)
+# SACS Extrapolation    : 1
+# SACS Interp Flag      : 1/E
+#1          2         3    4     5          6        7        8         9          10         11         12         13             14           15          16          17         18    
+#area      sample    line react fthick[mm] mass[g]  diam[mm] thick[mm] SACS[b]    f-SACS[b]  ssf-SACS[b] ms-SACS[b] n_tot_sample   A0[Bq/g]     Cgam_calc   Cgam_exp    Ratio(C/E) BIF   
+#########################################################################################################################################################################################
 NEAR       B2        11   ng    10.00      0.0490   13.0     0.0191    30.290     0.358      0.356      0.358      1.720e+13      2.077e+04    7.821e+04   4.504e+05   0.174      1.0000
 NEAR       C2        11   ng    10.00      0.0480   13.0     0.0187    30.290     0.358      0.356      0.358      1.720e+13      2.077e+04    6.395e+04   4.495e+05   0.142      1.0000
 NEAR       A2        11   ng    10.00      0.0506   13.0     0.0197    30.290     0.358      0.356      0.358      1.720e+13      2.076e+04    8.895e+04   6.416e+05   0.139      1.0000

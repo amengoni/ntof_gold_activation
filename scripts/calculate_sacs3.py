@@ -11,6 +11,24 @@ from scipy.special import expn
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+# Avogadro Constant [atoms/mol]
+NA = 6.02214076e23
+
+# Element physical properties lookup table (Molar mass [g/mol], Density [g/cm3])
+ELEMENT_PROPERTIES = {
+    "AU": (196.966569, 19.32),
+    "AL": (26.9815385, 2.70),
+    "CU": (63.546, 8.96),
+    "FE": (55.845, 7.874),
+    "PB": (207.2, 11.34),
+    "NI": (58.6934, 8.908),
+    "BI": (208.9804, 9.78),
+    "AG": (107.8682, 10.49),
+    "PT": (195.084, 21.45),
+    "U":  (238.02891, 19.1),
+    "TH": (232.0377, 11.72)
+}
+
 def resolve_helper_script(script_name):
     local_path = os.path.join(os.getcwd(), "src", script_name)
     if os.path.exists(local_path):
@@ -322,6 +340,27 @@ def run_rebinnerize(input_file, num_cols, idx_elow, idx_eup, idx_val, e_min, e_m
         raise RuntimeError(f"rebinnerize.py failed:\n{stderr}")
     return np.loadtxt("out_rebinned")
 
+def convert_um_to_atoms_per_barn(thick_um, sample_mat):
+    mat_key = str(sample_mat).strip().upper()
+    if mat_key not in ELEMENT_PROPERTIES:
+        raise KeyError(
+            f"Cannot convert --thick_um: Material '{sample_mat}' is not in physical property table. "
+            f"Available elements: {', '.join(sorted(ELEMENT_PROPERTIES.keys()))}"
+        )
+    molar_mass, density = ELEMENT_PROPERTIES[mat_key]
+    thick_cm = thick_um * 1e-4
+    atoms_per_cm2 = (density * thick_cm / molar_mass) * NA
+    return atoms_per_cm2 * 1e-24
+
+def convert_atoms_per_barn_to_um(atoms_per_barn, sample_mat):
+    mat_key = str(sample_mat).strip().upper()
+    if mat_key not in ELEMENT_PROPERTIES:
+        return 0.0
+    molar_mass, density = ELEMENT_PROPERTIES[mat_key]
+    atoms_per_cm2 = atoms_per_barn * 1e24
+    thick_cm = (atoms_per_cm2 * molar_mass) / (density * NA)
+    return thick_cm * 1e4
+
 def print_usage():
     usage_text = """
 ================================================================================
@@ -338,7 +377,7 @@ Positional Arguments:
   react         Reaction channel (e.g., ng, n2n, n4n, or ENDF reaction code)
   fthick_mm     Filter thickness in mm
   sample_mat    Sample element label (e.g., Au)
-  sample_thick  Target thickness in atoms/barn
+  sample_thick  Target thickness in atoms/barn (Overridden if --thick_um is supplied)
   bpd           Bins per decade
   bin_mode      Binning mode: 0 = Late Rebin/Bin (Master Grid), 1 = Early Rebin/Bin
 
@@ -348,7 +387,8 @@ Optional Arguments:
   fms_file      Path to pointwise Monte Carlo F_ms output file (optional)
 
 Optional Flags:
-  --ssf_model   Self-shielding model: 'normal' (default) or 'isotropic'
+  -u, --thick_um  Sample thickness in micrometers (um). Converts to atoms/barn dynamically.
+  --ssf_model     Self-shielding model: 'normal' (default) or 'isotropic'
 """
     print(usage_text)
 
@@ -374,6 +414,13 @@ def main():
     parser.add_argument("fms_file", nargs="?", default=None, help="Path to pointwise Monte Carlo F_ms output file")
     
     parser.add_argument(
+        "-u", "--thick_um",
+        type=float,
+        default=None,
+        help="Sample thickness in micrometers (um). Automatically calculates target thickness in atoms/barn."
+    )
+    
+    parser.add_argument(
         "--ssf_model",
         type=str,
         choices=["isotropic", "normal"],
@@ -383,10 +430,18 @@ def main():
 
     args = parser.parse_args()
 
+    # Dynamic thickness conversion if --thick_um (-u) is specified
+    if args.thick_um is not None:
+        sample_thick_atoms_per_barn = convert_um_to_atoms_per_barn(args.thick_um, args.sample_mat)
+        sample_thick_um = args.thick_um
+    else:
+        sample_thick_atoms_per_barn = args.sample_thick_atoms_per_barn
+        sample_thick_um = convert_atoms_per_barn_to_um(sample_thick_atoms_per_barn, args.sample_mat)
+
     filter_file = "data/B4Cx_Sigma.ntot" if os.path.exists("data/B4Cx_Sigma.ntot") else "data/B4Cx.Sigma_ntot"
     fln_spec = f"data/{args.nspectrum}"
     fln_react = resolve_reaction_file(args.iso, args.react)
-    fln_sample = resolve_sample_file(args.sample_mat) if args.sample_thick_atoms_per_barn > 0.0 else None
+    fln_sample = resolve_sample_file(args.sample_mat) if sample_thick_atoms_per_barn > 0.0 else None
 
     ff = 0.1 * args.fthick_mm
     E1, E2 = 1.0e-3, 1.0e9
@@ -401,7 +456,7 @@ def main():
         binned_filt = run_binnerize(filter_file, 2, 1, 2, E1, E2, args.bpd, interp_type="linear")
         binned_react = run_binnerize(fln_react, 2, 1, 2, E1, E2, args.bpd, interp_type="linear")
 
-        if args.sample_thick_atoms_per_barn > 0.0:
+        if sample_thick_atoms_per_barn > 0.0:
             binned_samp = run_binnerize(fln_sample, 2, 1, 2, E1, E2, args.bpd, interp_type="linear")
             sigma_samp = binned_samp[:, 2]
         else:
@@ -426,7 +481,7 @@ def main():
 
         # Include Fms mesh in master grid if available for exact alignment
         native_grid_list = [x_react[x_react > 0]]
-        if args.sample_thick_atoms_per_barn > 0.0:
+        if sample_thick_atoms_per_barn > 0.0:
             x_samp, y_samp = load_2col(fln_sample)
             native_grid_list.append(x_samp[x_samp > 0])
         if fms_x is not None and len(fms_x) > 0:
@@ -453,14 +508,14 @@ def main():
 
         sigma_filt = interp_trend_extrap(E_grid, x_filt, y_filt, n_pts_fit=5, is_loglog=True, extrap_mode=args.extrap_mode)
         sigma_react = interp_trend_extrap(E_grid, x_react, y_react, n_pts_fit=5, is_loglog=True, is_threshold_rxn=is_threshold_rxn, extrap_mode=args.extrap_mode)
-        sigma_samp = interp_trend_extrap(E_grid, x_samp, y_samp, n_pts_fit=5, is_loglog=True, extrap_mode=args.extrap_mode) if args.sample_thick_atoms_per_barn > 0.0 else np.zeros_like(E_grid)
+        sigma_samp = interp_trend_extrap(E_grid, x_samp, y_samp, n_pts_fit=5, is_loglog=True, extrap_mode=args.extrap_mode) if sample_thick_atoms_per_barn > 0.0 else np.zeros_like(E_grid)
 
     attn_filt = np.where(ff * sigma_filt < 99.0, np.exp(-sigma_filt * ff), 0.0)
     phi_filt = phi_raw * attn_filt
 
-    samp_opt_depth = sigma_samp * args.sample_thick_atoms_per_barn
+    samp_opt_depth = sigma_samp * sample_thick_atoms_per_barn
 
-    if args.sample_thick_atoms_per_barn > 0.0:
+    if sample_thick_atoms_per_barn > 0.0:
         if args.ssf_model == "isotropic":
             ssf_factor = isotropic_ssf_flat_foil(samp_opt_depth)
         else:
@@ -590,7 +645,7 @@ def main():
         f"flux interp flag : {args.interp_flag}\n"
         f"extrap mode      : {args.extrap_mode}\n"
         f"filter thickness : {args.fthick_mm:8.1f} mm\n"
-        f"sample thickness : {args.sample_thick_atoms_per_barn:8.3e} atoms/b\n"
+        f"sample thickness : {sample_thick_atoms_per_barn:8.3e} atoms/b ({sample_thick_um:8.2f} um)\n"
         f"kT fitted        : {kt_str} ({kT:10.3e} eV)\n"
         f"MB-SACS          : {msacs:10.3e} b\n"
         f"MACS             : {macs:10.3e} b\n"
@@ -611,6 +666,7 @@ def main():
     print(f"# nspectrum       : {args.nspectrum}")
     print(f"# Interp Flag     : {args.interp_flag}")
     print(f"# Extrap Mode     : {args.extrap_mode}")
+    print(f"# Sample Thick.   : {sample_thick_atoms_per_barn:10.3e} atoms/b ({sample_thick_um:8.2f} um)")
     print(f"# kT-fitted       : {kt_str} ({kT:10.3e} eV)")
     print(f"# MB-SACS      [b]: {msacs:10.3e}")
     print(f"# MACS         [b]: {macs:10.3e}")
