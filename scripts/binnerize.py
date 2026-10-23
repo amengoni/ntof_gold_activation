@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-import sys
 import re
+import sys
 import numpy as np
 
 USAGE_TEXT = """
@@ -16,7 +16,7 @@ Description:
   introducing linear interpolation errors across decades.
 
 Usage:
-  python3 binnerize.py                    (Interactive mode: prompts line-by-line)
+  python3 binnerize.py                    (Display help message)
   python3 binnerize.py < config_file      (Piped STDIN mode)
   python3 binnerize.py -h                 (Display this help message)
 
@@ -54,12 +54,13 @@ Line 5 : <grid_num_cols> <grid_idx_elow> <grid_idx_eup>  (ONLY REQUIRED IF num_b
 ================================================================================
 """
 
+
 def fix_fortran_exponent(val):
     """Converts Fortran format numbers (e.g., '1.2345-6' or '1.2345+6') to standard float strings ('1.2345e-6')."""
     if isinstance(val, bytes):
-        val = val.decode('utf-8')
+        val = val.decode("utf-8")
     val = val.strip()
-    fixed = re.sub(r'(?<=[0-9])([+-][0-9]+)', r'e\1', val)
+    fixed = re.sub(r"(?<=[0-9])([+-][0-9]+)", r"e\1", val)
     return float(fixed)
 
 
@@ -68,15 +69,15 @@ def load_file_robust(filename):
     try:
         return np.loadtxt(filename)
     except ValueError:
-        with open(filename, 'r') as f:
+        with open(filename, "r") as f:
             lines = f.readlines()
-        
+
         cleaned_data = []
         for line in lines:
             line_str = line.strip()
             if not line_str or line_str.startswith("#"):
                 continue
-            fixed_line = re.sub(r'(?<=[0-9])([+-][0-9]+)', r'e\1', line_str)
+            fixed_line = re.sub(r"(?<=[0-9])([+-][0-9]+)", r"e\1", line_str)
             cleaned_data.append([float(tok) for tok in fixed_line.split()])
 
         return np.array(cleaned_data)
@@ -96,15 +97,20 @@ def prompt_read(prompt_msg):
 def read_config():
     """Reads configuration parameters line-by-line with interactive prompts."""
     filename = prompt_read("#Enter input data filename: ")
-    
-    line2_str = prompt_read("#Enter column configuration (<num_cols> <idx_x> <idx_y> [idx_err]): ")
+
+    line2_str = prompt_read(
+        "#Enter column configuration (<num_cols> <idx_x> <idx_y> [idx_err]): "
+    )
     line2 = line2_str.split()
     num_cols = int(line2[0])
     idx_x = int(line2[1]) - 1
     idx_y = int(line2[2]) - 1
     idx_err = int(line2[3]) - 1 if num_cols > 3 and len(line2) > 3 else None
-    
-    line3_str = prompt_read("#Enter binning parameters (<e_min> <e_max> <scale_type> <num_bins/bpd> <interp_type> [iflag]): ")
+
+    line3_str = prompt_read(
+        "#Enter binning parameters (<e_min> <e_max> <scale_type>"
+        " <num_bins/bpd> <interp_type> [iflag]): "
+    )
     line3 = line3_str.split()
     e_min_new = float(line3[0])
     e_max_new = float(line3[1])
@@ -112,17 +118,20 @@ def read_config():
     num_bins_param = float(line3[3])
     interp_type = line3[4].lower()
     iflag = line3[5].lower() if len(line3) > 5 else "others"
-        
+
     grid_filename = None
     grid_idx_elow = None
     grid_idx_eup = None
 
     if num_bins_param == 0:
         grid_filename = prompt_read("#Enter target grid filename: ")
-        line5_str = prompt_read("#Enter grid column layout (<grid_num_cols> <grid_idx_elow> <grid_idx_eup>): ")
+        line5_str = prompt_read(
+            "#Enter grid column layout (<grid_num_cols> <grid_idx_elow>"
+            " <grid_idx_eup>): "
+        )
         line5 = line5_str.split()
         grid_idx_elow = int(line5[1]) - 1
-        grid_idx_eup  = int(line5[2]) - 1
+        grid_idx_eup = int(line5[2]) - 1
 
     return {
         "filename": filename,
@@ -138,7 +147,7 @@ def read_config():
         "iflag": iflag,
         "grid_filename": grid_filename,
         "grid_idx_elow": grid_idx_elow,
-        "grid_idx_eup": grid_idx_eup
+        "grid_idx_eup": grid_idx_eup,
     }
 
 
@@ -146,7 +155,10 @@ def generate_new_grid(cfg, x_data):
     """Generates the target energy bin boundaries."""
     if cfg["num_bins_param"] == 0:
         grid_data = load_file_robust(cfg["grid_filename"])
-        return grid_data[:, cfg["grid_idx_elow"]], grid_data[:, cfg["grid_idx_eup"]]
+        return (
+            grid_data[:, cfg["grid_idx_elow"]],
+            grid_data[:, cfg["grid_idx_eup"]],
+        )
 
     pos_energies = x_data[x_data > 0]
     if len(pos_energies) == 0:
@@ -171,7 +183,9 @@ def generate_new_grid(cfg, x_data):
     else:  # Log scale (BinsPerDecade)
         decades = np.log10(e_max / e_min)
         n_bins = int(np.round(decades * cfg["num_bins_param"]))
-        edges = np.logspace(np.log10(e_min), np.log10(e_max), max(1, n_bins) + 1)
+        edges = np.logspace(
+            np.log10(e_min), np.log10(e_max), max(1, n_bins) + 1
+        )
 
     return edges[:-1], edges[1:]
 
@@ -193,10 +207,10 @@ def log_trapezoid_segment(x1, x2, y1, y2):
     """Analytic power-law integration (y ~ x^alpha) between two points (x1, y1) and (x2, y2)."""
     if x1 <= 0.0 or x2 <= 0.0 or y1 <= 0.0 or y2 <= 0.0:
         return 0.5 * (y1 + y2) * (x2 - x1)
-    
+
     log_x1, log_x2 = np.log(x1), np.log(x2)
     log_y1, log_y2 = np.log(y1), np.log(y2)
-    
+
     d_log_x = log_x2 - log_x1
     d_log_y = log_y2 - log_y1
 
@@ -212,22 +226,26 @@ def log_trapezoid_segment(x1, x2, y1, y2):
         return (y2 * x2 - y1 * x1) / (alpha + 1.0)
 
 
-def binnerize_data(x_raw, y_raw, y_err_raw, new_elow, new_eup, interp_type, iflag):
-    """
-    Binnerizes pointwise x,y data into target energy bin boundaries 
+def binnerize_data(
+    x_raw, y_raw, y_err_raw, new_elow, new_eup, interp_type, iflag
+):
+    """Binnerizes pointwise x,y data into target energy bin boundaries
+
     using Logarithmic Quadrature across native sub-mesh nodes.
     """
     idx = np.argsort(x_raw)
     x = np.asarray(x_raw[idx], dtype=float)
     y = np.asarray(y_raw[idx], dtype=float)
-    y_err = np.asarray(y_err_raw[idx], dtype=float) if y_err_raw is not None else None
+    y_err = (
+        np.asarray(y_err_raw[idx], dtype=float) if y_err_raw is not None else None
+    )
 
     n_bins = len(new_elow)
     binned_y = np.zeros(n_bins)
     binned_err = np.zeros(n_bins) if y_err is not None else None
 
-    i_starts = np.searchsorted(x, new_elow, side='left')
-    i_ends = np.searchsorted(x, new_eup, side='right')
+    i_starts = np.searchsorted(x, new_elow, side="left")
+    i_ends = np.searchsorted(x, new_eup, side="right")
 
     for j in range(n_bins):
         elo = float(new_elow[j])
@@ -242,19 +260,21 @@ def binnerize_data(x_raw, y_raw, y_err_raw, new_elow, new_eup, interp_type, ifla
 
         sub_x = x[i_start:i_end]
         inside_mask = (sub_x > elo) & (sub_x < eup)
-        eval_points = np.unique(np.concatenate(([elo], sub_x[inside_mask], [eup])))
+        eval_points = np.unique(
+            np.concatenate(([elo], sub_x[inside_mask], [eup]))
+        )
 
         if len(eval_points) < 2:
             continue
 
         eval_y = interpolate_values(eval_points, x, y, interp_type)
-        
+
         # Segment-by-segment integration over native sub-mesh
         integral = 0.0
         for k in range(len(eval_points) - 1):
-            x1, x2 = eval_points[k], eval_points[k+1]
-            y1, y2 = eval_y[k], eval_y[k+1]
-            
+            x1, x2 = eval_points[k], eval_points[k + 1]
+            y1, y2 = eval_y[k], eval_y[k + 1]
+
             if interp_type in ["log", "1/e", "1/e_flux"]:
                 integral += log_trapezoid_segment(x1, x2, y1, y2)
             else:
@@ -278,7 +298,10 @@ def binnerize_data(x_raw, y_raw, y_err_raw, new_elow, new_eup, interp_type, ifla
 
 
 def main():
-    if len(sys.argv) > 1 and sys.argv[1] in ["-h", "--help"]:
+    # Print usage/help if explicitly requested via flags OR if executed without parameters in an interactive terminal
+    if (len(sys.argv) == 1 and sys.stdin.isatty()) or (
+        len(sys.argv) > 1 and sys.argv[1] in ["-h", "--help"]
+    ):
         print(USAGE_TEXT)
         sys.exit(0)
 
@@ -292,9 +315,13 @@ def main():
     new_elow, new_eup = generate_new_grid(cfg, x_raw)
 
     binned_y, binned_err = binnerize_data(
-        x_raw, y_raw, y_err_raw,
-        new_elow, new_eup,
-        cfg["interp_type"], cfg["iflag"]
+        x_raw,
+        y_raw,
+        y_err_raw,
+        new_elow,
+        new_eup,
+        cfg["interp_type"],
+        cfg["iflag"],
     )
 
     out_filename = "out_binned"
@@ -305,7 +332,9 @@ def main():
         output = np.column_stack((new_elow, new_eup, binned_y))
         header_text = "Elow Eup Binned_Quantity"
 
-    np.savetxt(out_filename, output, fmt="%.6e", header=header_text, comments="# ")
+    np.savetxt(
+        out_filename, output, fmt="%.6e", header=header_text, comments="# "
+    )
     print(f"# Binnerization complete. Saved output to '{out_filename}'.")
 
 
