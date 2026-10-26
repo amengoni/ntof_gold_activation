@@ -59,15 +59,43 @@ python scripts/calculate_counts.py data/input_NEAR_N14
 
 Parses Spectrum-Averaged Cross Section (SACS) files (e.g., `sacs_SAM`), extracts self-shielding corrections, and calculates $A_{sat}$ across filter thickness steps (`fthick`).
 
-#### Usage:
-```bash
-python scripts/calculate_sacs.py <path_to_sacs_table>
-```
+================================================================================
+Spectral-Averaged Cross Section (SACS) Calculator - calculate_sacs.py
+================================================================================
 
-#### Example:
-```bash
-python scripts/calculate_sacs.py data/sacs_SAM
-```
+Usage:
+  python3 calculate_sacs.py -ns nspectrum -samplexs react_xs sample_ntot \
+                            [-samplemat MAT] [-samplemm MM | -sampleum UM] \
+                            [-filter filter_xs fthick_mm] [-bpd BPD] [-bin_mode MODE]
+
+Parameters:
+  -ns, --nspectrum     Neutron spectrum filename in data/ (e.g., NEAR-MCecc)
+  -samplexs            Reaction cross-section and sample total cross-section files in data/
+                       (e.g., au197ng.b81 au197ntot.b81)
+  -samplemat           Sample element symbol or Z number (e.g., Au or 79)
+  -samplemm            Sample thickness in mm
+  -sampleum, -u        Sample thickness in micrometers [um]
+  -samplethick, -a     Sample target thickness directly in atoms/barn
+
+Filter Option:
+  -filter filter_xs fthick_mm
+                       Filter macroscopic cross-section file in data/ [1/cm] and thickness in mm.
+                       If omitted, filter attenuation is skipped.
+
+Optional Options:
+  -bpd                 Bins per decade (default: 200)
+  -bin_mode            Binning mode: 0 = Late Rebin/Bin (default), 1 = Early Rebin/Bin
+  -extrap_mode         Extrapolation mode: 1 = Enabled (default), 0 = Disabled
+  -interp_flag         Flux interpolation shape: '1/E' (default) or 'linear'
+  -fms_file            Path to pointwise Monte Carlo F_ms output file
+
+Examples:
+  # Standard run (No Filter):
+  python3 calculate_sacs.py -ns NEAR-MCecc -samplemat Au -samplexs au197ng.b81 au197ntot.b81 -sampleum 100
+
+  # Run with a 10 mm B4C filter:
+  python3 calculate_sacs.py -ns NEAR-MCecc -samplemat Au -samplexs au197ng.b81 au197ntot.b81 -sampleum 100 -filter B4Cx_Sigma.ntot 10.0
+
 
 ---
 
