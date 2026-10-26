@@ -1,6 +1,6 @@
 # Input Table           : inputs/input_EAR1FC_BurialDating
 # Flux Units Mode       : n/eV/7E12p (Integrated Beam Spot)
-# Resolved Spectrum(s)  : EAR1-FCeval
+# Resolved Spectrum(s)  : EAR1-FCsimul
 # F_ms Correction Mode  : Auto-detect per sample line (msdatafiles/fms_*.dat)
 # Neutron Flux Shape    : 1/E
 # SACS Engine           : Python (calculate_sacs.py)
